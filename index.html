@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <style>
+        #square   {
+            position: absolute;
+            width: 40px ;
+            height: 40px ;
+            background:rgb(79, 160, 203) ;
+            top:5px ;
+            left:5px;
+        }
+
+         #border {
+            border: 15px double rgb(178, 34, 34);
+            position: absolute;
+            width: 1235px;
+            height: 635px;
+            background-color: rgba(255, 235, 205, 0.285);
+            top: 3px;
+            left: 3px;
+        }
+
+        #square2 {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-color: rgb(34, 0, 255);
+            top: 5px; 
+            left: 1211px
+        }
+        #it_dot{
+            position: relative;
+            width: 6px;
+            height: 6px;
+            margin: 17px auto;
+            background-color: rgb(142, 43, 0);
+            top: 18;
+            left: 18;
+
+        }
+            
+        </style>
+    </head>
+
+
+<body>
+  
+    <div id="square"> 
+        <div id="it_dot">
+
+        </div>    
+    </div>
+
+    <div id="border">   </div>
+
+    <div id="square2">
+             <div id="_">
+             </div> 
+    </div>
+</body>
+
+<script>
+    console.log(1234567890)
+
+    const square = document.getElementById("square")
+    //square.style.top = "100px"
+    let x = 16
+    let y = 16
+    let dx = 0
+    let dy = 0
+
+    const square2 = document.getElementById("square2")
+    //square2.style.top = "100px"
+    let xx = 1213
+    let yy = 18
+    let dxx = 0
+    let dyy = 0 
+
+    let overlapping = false
+    /*
+    border is difind in css(id=border)
+    these values are the border-with is 15
+    so add 15 to left/top border and -15 to to the with and hight propertys for the right and bottom 
+     */
+    let right_border = 1220
+    let bottom_border = 620    
+    let left_border = 15
+    let top_border = 15
+
+    function do_stuff(){
+        // BLOCK FOR SQUARE (1)
+        x = x + dx
+        y = y + dy
+        switch(x){
+            case left_border:
+                dx = 1
+                break
+            case right_border:
+                dx = -1
+                break
+        }
+        switch(y){
+            case top_border:
+                dy = 1
+                break
+            case bottom_border:
+                dy = -1
+                break
+        }
+        square.style.left = x + "px"
+        //console.log ("going right! "  + dx)
+        square.style.top = y + "px"
+        //console.log ("going down! "  + dy)
+
+        // BLOCK FOR SQUARE2
+        xx = xx + dxx 
+        yy = yy + dyy
+        switch(xx){
+            case left_border:
+                dxx = 1
+                break
+            case right_border:
+                dxx =   -1
+                break
+        }
+        switch(yy){
+            case top_border:
+                dyy = 1
+                break
+            case bottom_border:
+                dyy = -1
+                break
+         }
+        square2.style.left = xx + "px"
+        //console.log ("going right! #2"  + dxx)
+        square2.style.top = yy + "px"
+        //console.log ("going down! #2"  + dyy)
+
+        if(   ((x >= xx && x <= xx+40)
+            || (xx>= x && xx <= x+40) )
+            &&  ((y >= yy && y <= yy+40)
+            || (yy>= y && yy <= y+40) ) 
+        )
+        {
+            if(overlapping===false) {
+                console.log ("you're it!")
+                /*
+                s2 = get element sqaure 2
+                s1 = get element sqaure (1)
+                i2 = get inner html of sqaure2
+                i1=  get inner html of sqaure(1)
+                replace sq2's html with i1
+                replace sq1's html with i2
+               
+                */
+               
+                let i1 = square.innerHTML
+                let i2 = square2.innerHTML 
+                square.innerHTML=i2
+                square2.innerHTML=i1
+
+            }
+            overlapping=true
+           
+        } else { 
+            overlapping=false
+        }
+    
+    }
+
+    setInterval(do_stuff,1)
+    window.addEventListener("keydown",(event)=>{
+        switch (event.key){ 
+
+        case "ArrowDown":
+            dx = 0
+            dy = 1
+            break
+        case "ArrowLeft" : 
+            dx = -1
+            dy = 0
+            break
+        case "ArrowUp":
+            dx = 0
+            dy = -1
+            break
+        case "ArrowRight" : 
+            dx = 1
+            dy = 0
+            break
+      }}
+    )
+
+
+
+    window.addEventListener("keydown",(event)=>{
+        switch(event.key){
+            case "s":
+                dxx = 0
+                dyy = 1
+                break
+            case "a" : 
+                dxx = -1
+                dyy = 0
+                break
+            case "w":
+                dxx = 0
+                dyy = -1
+                break
+            case "d" : 
+                dxx = 1
+                dyy = 0
+                break
+        } 
+        console.log ("something didn't go wrong! wahoo!" + event.key)
+    })
+
+
+    function potato(html_replace) {
+        console.log("I'm going to replace the hmtl now! with: " + html_replace)
+        document.body.innerHTML = html_replace
+
+
+    }
+      
+</script>
+
+</html>
+
