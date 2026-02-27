@@ -1,230 +1,562 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <style>
-        #square   {
-            position: absolute;
-            width: 40px ;
-            height: 40px ;
-            background:rgb(79, 160, 203) ;
-            top:5px ;
-            left:5px;
-        }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Two-Player Snake</title>
+  <style>
+    :root {
+      --bg: #10131a;
+      --panel: #1b2130;
+      --grid: #2a3245;
+      --text: #e8eefc;
+      --p1: #4caf50;
+      --p2: #4aa3ff;
+      --berry: #e04565;
+      --laser: #ffd54a;
+      --trap: #b18cff;
+      --warning: #ff7a7a;
+    }
 
-         #border {
-            border: 15px double rgb(178, 34, 34);
-            position: absolute;
-            width: 1235px;
-            height: 635px;
-            background-color: rgba(255, 235, 205, 0.285);
-            top: 3px;
-            left: 3px;
-        }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, Helvetica, sans-serif;
+    }
 
-        #square2 {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            background-color: rgb(34, 0, 255);
-            top: 5px; 
-            left: 1211px
-        }
-        #it_dot{
-            position: relative;
-            width: 6px;
-            height: 6px;
-            margin: 17px auto;
-            background-color: rgb(142, 43, 0);
-            top: 18;
-            left: 18;
+    body {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at top, #1a2233 0%, var(--bg) 55%);
+      color: var(--text);
+      padding: 16px;
+    }
 
-        }
-            
-        </style>
-    </head>
+    .game-wrap {
+      width: min(100%, 980px);
+      display: grid;
+      gap: 12px;
+    }
 
+    .hud {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
 
+    .panel {
+      background: color-mix(in srgb, var(--panel) 90%, #fff 10%);
+      border: 1px solid #3b455e;
+      border-radius: 10px;
+      padding: 10px 12px;
+      line-height: 1.4;
+    }
+
+    .panel h2 {
+      font-size: 1rem;
+      margin-bottom: 6px;
+    }
+
+    .p1-title { color: var(--p1); }
+    .p2-title { color: var(--p2); }
+
+    canvas {
+      width: 100%;
+      max-width: 960px;
+      aspect-ratio: 24 / 16;
+      background: var(--panel);
+      border: 2px solid #55617f;
+      border-radius: 10px;
+      image-rendering: pixelated;
+      box-shadow: 0 18px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      font-size: 0.95rem;
+    }
+
+    .game-over {
+      color: var(--warning);
+      font-weight: bold;
+      margin-top: 6px;
+    }
+
+    @media (max-width: 760px) {
+      .hud,
+      .controls {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
 <body>
-  
-    <div id="square"> 
-        <div id="it_dot">
+  <main class="game-wrap">
+    <section class="hud">
+      <article class="panel" id="p1Panel">
+        <h2 class="p1-title">Player 1 (WASD)</h2>
+        <p>Length: <span id="p1Length">3</span></p>
+        <p>Stored item: <span id="p1Item">None</span></p>
+        <p>Score (berries eaten): <span id="p1Score">0</span></p>
+      </article>
+      <article class="panel" id="p2Panel">
+        <h2 class="p2-title">Player 2 (Arrow Keys)</h2>
+        <p>Length: <span id="p2Length">3</span></p>
+        <p>Stored item: <span id="p2Item">None</span></p>
+        <p>Score (berries eaten): <span id="p2Score">0</span></p>
+      </article>
+    </section>
 
-        </div>    
-    </div>
+    <canvas id="board" width="960" height="640" aria-label="Two player snake board"></canvas>
 
-    <div id="border">   </div>
+    <section class="controls">
+      <article class="panel">
+        <h2>Item Rules</h2>
+        <p><strong>Berries</strong> grow your snake by 2 segments and increase score.</p>
+        <p><strong>Laser</strong> removes up to 4 tail segments from the other player.</p>
+        <p><strong>Trap</strong> places a trap tile. If the other player hits it, they lose 3 tail segments.</p>
+      </article>
+      <article class="panel">
+        <h2>Use Items</h2>
+        <p>Player 1: press <strong>F</strong> to use stored item.</p>
+        <p>Player 2: press <strong>/</strong> to use stored item.</p>
+        <p>Restart game: press <strong>R</strong>.</p>
+        <p class="game-over" id="statusText"></p>
+      </article>
+    </section>
+  </main>
 
-    <div id="square2">
-             <div id="_">
-             </div> 
-    </div>
-</body>
+  <script>
+    // --- Core board settings ---
+    const CELL_SIZE = 40;
+    const COLS = 24;
+    const ROWS = 16;
+    const TICK_MS = 160;
 
-<script>
-    console.log(1234567890)
+    const canvas = document.getElementById("board");
+    const ctx = canvas.getContext("2d");
 
-    const square = document.getElementById("square")
-    //square.style.top = "100px"
-    let x = 16
-    let y = 16
-    let dx = 0
-    let dy = 0
+    const statusText = document.getElementById("statusText");
+    const p1Length = document.getElementById("p1Length");
+    const p1Item = document.getElementById("p1Item");
+    const p1Score = document.getElementById("p1Score");
+    const p2Length = document.getElementById("p2Length");
+    const p2Item = document.getElementById("p2Item");
+    const p2Score = document.getElementById("p2Score");
 
-    const square2 = document.getElementById("square2")
-    //square2.style.top = "100px"
-    let xx = 1213
-    let yy = 18
-    let dxx = 0
-    let dyy = 0 
+    const ITEM_TYPES = ["laser", "trap", "berry"];
 
-    let overlapping = false
-    /*
-    border is difind in css(id=border)
-    these values are the border-with is 15
-    so add 15 to left/top border and -15 to to the with and hight propertys for the right and bottom 
+    let players;
+    let pickups;
+    let placedTraps;
+    let gameOver;
+
+    /**
+     * Build a fresh game state so restart is easy.
      */
-    let right_border = 1220
-    let bottom_border = 620    
-    let left_border = 15
-    let top_border = 15
-
-    function do_stuff(){
-        // BLOCK FOR SQUARE (1)
-        x = x + dx
-        y = y + dy
-        switch(x){
-            case left_border:
-                dx = 1
-                break
-            case right_border:
-                dx = -1
-                break
-        }
-        switch(y){
-            case top_border:
-                dy = 1
-                break
-            case bottom_border:
-                dy = -1
-                break
-        }
-        square.style.left = x + "px"
-        //console.log ("going right! "  + dx)
-        square.style.top = y + "px"
-        //console.log ("going down! "  + dy)
-
-        // BLOCK FOR SQUARE2
-        xx = xx + dxx 
-        yy = yy + dyy
-        switch(xx){
-            case left_border:
-                dxx = 1
-                break
-            case right_border:
-                dxx =   -1
-                break
-        }
-        switch(yy){
-            case top_border:
-                dyy = 1
-                break
-            case bottom_border:
-                dyy = -1
-                break
-         }
-        square2.style.left = xx + "px"
-        //console.log ("going right! #2"  + dxx)
-        square2.style.top = yy + "px"
-        //console.log ("going down! #2"  + dyy)
-
-        if(   ((x >= xx && x <= xx+40)
-            || (xx>= x && xx <= x+40) )
-            &&  ((y >= yy && y <= yy+40)
-            || (yy>= y && yy <= y+40) ) 
-        )
+    function resetGame() {
+      players = [
         {
-            if(overlapping===false) {
-                console.log ("you're it!")
-                /*
-                s2 = get element sqaure 2
-                s1 = get element sqaure (1)
-                i2 = get inner html of sqaure2
-                i1=  get inner html of sqaure(1)
-                replace sq2's html with i1
-                replace sq1's html with i2
-               
-                */
-               
-                let i1 = square.innerHTML
-                let i2 = square2.innerHTML 
-                square.innerHTML=i2
-                square2.innerHTML=i1
-
-            }
-            overlapping=true
-           
-        } else { 
-            overlapping=false
+          id: 1,
+          name: "Player 1",
+          color: "#4caf50",
+          headColor: "#8cf29e",
+          segments: [
+            { x: 4, y: 8 },
+            { x: 3, y: 8 },
+            { x: 2, y: 8 }
+          ],
+          direction: { x: 1, y: 0 },
+          nextDirection: { x: 1, y: 0 },
+          inventory: null,
+          score: 0,
+          alive: true
+        },
+        {
+          id: 2,
+          name: "Player 2",
+          color: "#4aa3ff",
+          headColor: "#95c6ff",
+          segments: [
+            { x: 19, y: 8 },
+            { x: 20, y: 8 },
+            { x: 21, y: 8 }
+          ],
+          direction: { x: -1, y: 0 },
+          nextDirection: { x: -1, y: 0 },
+          inventory: null,
+          score: 0,
+          alive: true
         }
-    
+      ];
+
+      pickups = [];
+      placedTraps = [];
+      gameOver = false;
+      statusText.textContent = "";
+
+      // Keep three pickups on the board at all times.
+      for (let i = 0; i < 3; i += 1) {
+        spawnPickup();
+      }
+
+      updateHud();
     }
 
-    setInterval(do_stuff,1)
-    window.addEventListener("keydown",(event)=>{
-        switch (event.key){ 
-
-        case "ArrowDown":
-            dx = 0
-            dy = 1
-            break
-        case "ArrowLeft" : 
-            dx = -1
-            dy = 0
-            break
-        case "ArrowUp":
-            dx = 0
-            dy = -1
-            break
-        case "ArrowRight" : 
-            dx = 1
-            dy = 0
-            break
-      }}
-    )
-
-
-
-    window.addEventListener("keydown",(event)=>{
-        switch(event.key){
-            case "s":
-                dxx = 0
-                dyy = 1
-                break
-            case "a" : 
-                dxx = -1
-                dyy = 0
-                break
-            case "w":
-                dxx = 0
-                dyy = -1
-                break
-            case "d" : 
-                dxx = 1
-                dyy = 0
-                break
-        } 
-        console.log ("something didn't go wrong! wahoo!" + event.key)
-    })
-
-
-    function potato(html_replace) {
-        console.log("I'm going to replace the hmtl now! with: " + html_replace)
-        document.body.innerHTML = html_replace
-
-
+    function isInsideBoard(point) {
+      return point.x >= 0 && point.y >= 0 && point.x < COLS && point.y < ROWS;
     }
-      
-</script>
 
+    function sameCell(a, b) {
+      return a.x === b.x && a.y === b.y;
+    }
+
+    function randomCell() {
+      return {
+        x: Math.floor(Math.random() * COLS),
+        y: Math.floor(Math.random() * ROWS)
+      };
+    }
+
+    function isCellBlocked(cell) {
+      for (const player of players) {
+        for (const segment of player.segments) {
+          if (sameCell(cell, segment)) return true;
+        }
+      }
+
+      for (const pickup of pickups) {
+        if (sameCell(cell, pickup.position)) return true;
+      }
+
+      for (const trap of placedTraps) {
+        if (sameCell(cell, trap.position)) return true;
+      }
+
+      return false;
+    }
+
+    function spawnPickup() {
+      const type = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)];
+      let candidate = randomCell();
+      let attempts = 0;
+
+      while (isCellBlocked(candidate) && attempts < 300) {
+        candidate = randomCell();
+        attempts += 1;
+      }
+
+      pickups.push({ type, position: candidate });
+    }
+
+    /**
+     * Prevent players from reversing directly into themselves.
+     */
+    function setDirection(player, newDir) {
+      const current = player.direction;
+      if (current.x === -newDir.x && current.y === -newDir.y) {
+        return;
+      }
+      player.nextDirection = newDir;
+    }
+
+    /**
+     * Use the item currently stored in inventory.
+     */
+    function useItem(player) {
+      if (!player.inventory || gameOver) return;
+
+      const opponent = players.find((p) => p.id !== player.id);
+
+      if (player.inventory === "laser") {
+        // Laser cuts a chunk from the opponent's tail.
+        if (opponent.segments.length > 2) {
+          const removeCount = Math.min(4, opponent.segments.length - 2);
+          opponent.segments.splice(opponent.segments.length - removeCount, removeCount);
+        }
+      } else if (player.inventory === "trap") {
+        // Trap is placed right behind the player head.
+        const trapCell = {
+          x: player.segments[0].x - player.direction.x,
+          y: player.segments[0].y - player.direction.y
+        };
+        if (isInsideBoard(trapCell) && !isCellBlocked(trapCell)) {
+          placedTraps.push({ ownerId: player.id, position: trapCell });
+        }
+      } else if (player.inventory === "berry") {
+        // Stored berries can be eaten later for immediate growth.
+        growSnake(player, 2);
+        player.score += 1;
+      }
+
+      player.inventory = null;
+      updateHud();
+    }
+
+    function growSnake(player, amount) {
+      // Duplicate tail segment so length expands smoothly over several cells.
+      const tail = player.segments[player.segments.length - 1];
+      for (let i = 0; i < amount; i += 1) {
+        player.segments.push({ x: tail.x, y: tail.y });
+      }
+    }
+
+    function handlePickup(player, pickupIndex) {
+      const pickup = pickups[pickupIndex];
+      if (pickup.type === "berry") {
+        // Berry effect happens instantly.
+        growSnake(player, 2);
+        player.score += 1;
+      } else {
+        // Laser and trap are stored for later use.
+        player.inventory = pickup.type;
+      }
+
+      pickups.splice(pickupIndex, 1);
+      spawnPickup();
+    }
+
+    function checkTrapCollision(player) {
+      const hitIndex = placedTraps.findIndex((trap) =>
+        trap.ownerId !== player.id && sameCell(trap.position, player.segments[0])
+      );
+
+      if (hitIndex !== -1) {
+        if (player.segments.length > 2) {
+          const removeCount = Math.min(3, player.segments.length - 2);
+          player.segments.splice(player.segments.length - removeCount, removeCount);
+        }
+        placedTraps.splice(hitIndex, 1);
+      }
+    }
+
+    function checkSelfCollision(player) {
+      const head = player.segments[0];
+      return player.segments.slice(1).some((segment) => sameCell(head, segment));
+    }
+
+    function checkOtherCollision(player, other) {
+      const head = player.segments[0];
+      return other.segments.some((segment) => sameCell(head, segment));
+    }
+
+    function update() {
+      if (gameOver) return;
+
+      // Move each player one step.
+      for (const player of players) {
+        player.direction = player.nextDirection;
+        const nextHead = {
+          x: player.segments[0].x + player.direction.x,
+          y: player.segments[0].y + player.direction.y
+        };
+
+        if (!isInsideBoard(nextHead)) {
+          player.alive = false;
+          continue;
+        }
+
+        player.segments.unshift(nextHead);
+        player.segments.pop();
+      }
+
+      const [p1, p2] = players;
+
+      // Both heads move into same square = tie.
+      if (sameCell(p1.segments[0], p2.segments[0])) {
+        p1.alive = false;
+        p2.alive = false;
+      }
+
+      // Process pickups and traps.
+      for (const player of players) {
+        if (!player.alive) continue;
+
+        const pickupIndex = pickups.findIndex((pickup) =>
+          sameCell(player.segments[0], pickup.position)
+        );
+        if (pickupIndex !== -1) {
+          handlePickup(player, pickupIndex);
+        }
+
+        checkTrapCollision(player);
+      }
+
+      // Collision checks after moving.
+      if (p1.alive && (checkSelfCollision(p1) || checkOtherCollision(p1, p2))) {
+        p1.alive = false;
+      }
+      if (p2.alive && (checkSelfCollision(p2) || checkOtherCollision(p2, p1))) {
+        p2.alive = false;
+      }
+
+      const aliveCount = players.filter((player) => player.alive).length;
+      if (aliveCount <= 1) {
+        gameOver = true;
+        if (aliveCount === 0) {
+          statusText.textContent = "Game over: It's a tie! Press R to restart.";
+        } else {
+          const winner = players.find((player) => player.alive);
+          statusText.textContent = `Game over: ${winner.name} wins! Press R to restart.`;
+        }
+      }
+
+      updateHud();
+    }
+
+    function drawGrid() {
+      ctx.strokeStyle = "#2a3245";
+      ctx.lineWidth = 1;
+
+      for (let x = 0; x <= COLS; x += 1) {
+        ctx.beginPath();
+        ctx.moveTo(x * CELL_SIZE, 0);
+        ctx.lineTo(x * CELL_SIZE, ROWS * CELL_SIZE);
+        ctx.stroke();
+      }
+
+      for (let y = 0; y <= ROWS; y += 1) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * CELL_SIZE);
+        ctx.lineTo(COLS * CELL_SIZE, y * CELL_SIZE);
+        ctx.stroke();
+      }
+    }
+
+    function drawSnake(player) {
+      player.segments.forEach((segment, index) => {
+        const px = segment.x * CELL_SIZE;
+        const py = segment.y * CELL_SIZE;
+        ctx.fillStyle = index === 0 ? player.headColor : player.color;
+        ctx.fillRect(px + 2, py + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+      });
+    }
+
+    function drawPickup(pickup) {
+      const px = pickup.position.x * CELL_SIZE;
+      const py = pickup.position.y * CELL_SIZE;
+
+      if (pickup.type === "berry") {
+        ctx.fillStyle = "#e04565";
+        ctx.beginPath();
+        ctx.arc(px + CELL_SIZE / 2, py + CELL_SIZE / 2, CELL_SIZE / 3.2, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (pickup.type === "laser") {
+        ctx.fillStyle = "#ffd54a";
+        ctx.fillRect(px + 12, py + 8, 16, 24);
+        ctx.fillStyle = "#fff4bf";
+        ctx.fillRect(px + 16, py + 10, 8, 20);
+      } else if (pickup.type === "trap") {
+        ctx.fillStyle = "#b18cff";
+        ctx.beginPath();
+        ctx.moveTo(px + CELL_SIZE / 2, py + 6);
+        ctx.lineTo(px + CELL_SIZE - 6, py + CELL_SIZE - 6);
+        ctx.lineTo(px + 6, py + CELL_SIZE - 6);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    function drawTrap(trap) {
+      const px = trap.position.x * CELL_SIZE;
+      const py = trap.position.y * CELL_SIZE;
+      ctx.fillStyle = "#caa6ff";
+      ctx.fillRect(px + 10, py + 10, CELL_SIZE - 20, CELL_SIZE - 20);
+      ctx.strokeStyle = "#5f3ea4";
+      ctx.strokeRect(px + 10, py + 10, CELL_SIZE - 20, CELL_SIZE - 20);
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGrid();
+
+      for (const trap of placedTraps) {
+        drawTrap(trap);
+      }
+
+      for (const pickup of pickups) {
+        drawPickup(pickup);
+      }
+
+      for (const player of players) {
+        drawSnake(player);
+      }
+    }
+
+    function updateHud() {
+      const [p1, p2] = players;
+      p1Length.textContent = String(p1.segments.length);
+      p1Item.textContent = p1.inventory ? p1.inventory : "None";
+      p1Score.textContent = String(p1.score);
+
+      p2Length.textContent = String(p2.segments.length);
+      p2Item.textContent = p2.inventory ? p2.inventory : "None";
+      p2Score.textContent = String(p2.score);
+    }
+
+    // Keyboard controls for both players and item usage.
+    window.addEventListener("keydown", (event) => {
+      const key = event.key;
+      const p1 = players[0];
+      const p2 = players[1];
+
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "/"].includes(key)) {
+        event.preventDefault();
+      }
+
+      switch (key.toLowerCase()) {
+        // Player 1 movement (WASD)
+        case "w":
+          setDirection(p1, { x: 0, y: -1 });
+          break;
+        case "s":
+          setDirection(p1, { x: 0, y: 1 });
+          break;
+        case "a":
+          setDirection(p1, { x: -1, y: 0 });
+          break;
+        case "d":
+          setDirection(p1, { x: 1, y: 0 });
+          break;
+        // Player 2 movement (Arrow keys)
+        case "arrowup":
+          setDirection(p2, { x: 0, y: -1 });
+          break;
+        case "arrowdown":
+          setDirection(p2, { x: 0, y: 1 });
+          break;
+        case "arrowleft":
+          setDirection(p2, { x: -1, y: 0 });
+          break;
+        case "arrowright":
+          setDirection(p2, { x: 1, y: 0 });
+          break;
+        // Use items
+        case "f":
+          useItem(p1);
+          break;
+        case "/":
+          useItem(p2);
+          break;
+        // Restart
+        case "r":
+          resetGame();
+          break;
+      }
+    });
+
+    function gameLoop() {
+      update();
+      render();
+    }
+
+    resetGame();
+    render();
+    setInterval(gameLoop, TICK_MS);
+  </script>
+</body>
 </html>
-
