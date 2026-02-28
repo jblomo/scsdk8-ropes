@@ -66,10 +66,11 @@
       width: 100%;
       max-width: 960px;
       aspect-ratio: 24 / 16;
-      background: var(--panel);
+      background:
+        radial-gradient(circle at 20% 20%, #242e43 0, #1b2130 45%, #171d29 100%);
       border: 2px solid #55617f;
       border-radius: 10px;
-      image-rendering: pixelated;
+      image-rendering: auto;
       box-shadow: 0 18px 30px rgba(0, 0, 0, 0.35);
     }
 
@@ -131,11 +132,13 @@
   </main>
 
   <script>
-    // --- Core board settings ---
+    // ---------------------------
+    // Core board + timing settings
+    // ---------------------------
     const CELL_SIZE = 40;
     const COLS = 24;
     const ROWS = 16;
-    const TICK_MS = 160;
+    const TICK_MS = 125;
 
     const canvas = document.getElementById("board");
     const ctx = canvas.getContext("2d");
@@ -155,6 +158,14 @@
     let placedTraps;
     let gameOver;
 
+    // Variables for smooth animation between game ticks.
+    let lastFrameTime = 0;
+    let accumulator = 0;
+
+    function cloneSegments(segments) {
+      return segments.map((segment) => ({ x: segment.x, y: segment.y }));
+    }
+
     /**
      * Build a fresh game state so restart is easy.
      */
@@ -166,6 +177,11 @@
           color: "#4caf50",
           headColor: "#8cf29e",
           segments: [
+            { x: 4, y: 8 },
+            { x: 3, y: 8 },
+            { x: 2, y: 8 }
+          ],
+          prevSegments: [
             { x: 4, y: 8 },
             { x: 3, y: 8 },
             { x: 2, y: 8 }
@@ -186,6 +202,11 @@
             { x: 20, y: 8 },
             { x: 21, y: 8 }
           ],
+          prevSegments: [
+            { x: 19, y: 8 },
+            { x: 20, y: 8 },
+            { x: 21, y: 8 }
+          ],
           direction: { x: -1, y: 0 },
           nextDirection: { x: -1, y: 0 },
           inventory: null,
@@ -199,7 +220,6 @@
       gameOver = false;
       statusText.textContent = "";
 
-      // Keep three pickups on the board at all times.
       for (let i = 0; i < 3; i += 1) {
         spawnPickup();
       }
@@ -253,9 +273,6 @@
       pickups.push({ type, position: candidate });
     }
 
-    /**
-     * Prevent players from reversing directly into themselves.
-     */
     function setDirection(player, newDir) {
       const current = player.direction;
       if (current.x === -newDir.x && current.y === -newDir.y) {
@@ -264,22 +281,18 @@
       player.nextDirection = newDir;
     }
 
-    /**
-     * Use the item currently stored in inventory.
-     */
     function useItem(player) {
       if (!player.inventory || gameOver) return;
 
       const opponent = players.find((p) => p.id !== player.id);
 
       if (player.inventory === "laser") {
-        // Laser cuts a chunk from the opponent's tail.
         if (opponent.segments.length > 2) {
           const removeCount = Math.min(4, opponent.segments.length - 2);
           opponent.segments.splice(opponent.segments.length - removeCount, removeCount);
+          opponent.prevSegments = cloneSegments(opponent.segments);
         }
       } else if (player.inventory === "trap") {
-        // Trap is placed right behind the player head.
         const trapCell = {
           x: player.segments[0].x - player.direction.x,
           y: player.segments[0].y - player.direction.y
@@ -288,7 +301,6 @@
           placedTraps.push({ ownerId: player.id, position: trapCell });
         }
       } else if (player.inventory === "berry") {
-        // Stored berries can be eaten later for immediate growth.
         growSnake(player, 2);
         player.score += 1;
       }
@@ -298,21 +310,19 @@
     }
 
     function growSnake(player, amount) {
-      // Duplicate tail segment so length expands smoothly over several cells.
       const tail = player.segments[player.segments.length - 1];
       for (let i = 0; i < amount; i += 1) {
         player.segments.push({ x: tail.x, y: tail.y });
       }
+      player.prevSegments = cloneSegments(player.segments);
     }
 
     function handlePickup(player, pickupIndex) {
       const pickup = pickups[pickupIndex];
       if (pickup.type === "berry") {
-        // Berry effect happens instantly.
         growSnake(player, 2);
         player.score += 1;
       } else {
-        // Laser and trap are stored for later use.
         player.inventory = pickup.type;
       }
 
@@ -329,6 +339,7 @@
         if (player.segments.length > 2) {
           const removeCount = Math.min(3, player.segments.length - 2);
           player.segments.splice(player.segments.length - removeCount, removeCount);
+          player.prevSegments = cloneSegments(player.segments);
         }
         placedTraps.splice(hitIndex, 1);
       }
@@ -347,8 +358,9 @@
     function update() {
       if (gameOver) return;
 
-      // Move each player one step.
       for (const player of players) {
+        player.prevSegments = cloneSegments(player.segments);
+
         player.direction = player.nextDirection;
         const nextHead = {
           x: player.segments[0].x + player.direction.x,
@@ -366,13 +378,11 @@
 
       const [p1, p2] = players;
 
-      // Both heads move into same square = tie.
       if (sameCell(p1.segments[0], p2.segments[0])) {
         p1.alive = false;
         p2.alive = false;
       }
 
-      // Process pickups and traps.
       for (const player of players) {
         if (!player.alive) continue;
 
@@ -386,7 +396,6 @@
         checkTrapCollision(player);
       }
 
-      // Collision checks after moving.
       if (p1.alive && (checkSelfCollision(p1) || checkOtherCollision(p1, p2))) {
         p1.alive = false;
       }
@@ -409,7 +418,7 @@
     }
 
     function drawGrid() {
-      ctx.strokeStyle = "#2a3245";
+      ctx.strokeStyle = "rgba(76, 92, 123, 0.35)";
       ctx.lineWidth = 1;
 
       for (let x = 0; x <= COLS; x += 1) {
@@ -427,33 +436,120 @@
       }
     }
 
-    function drawSnake(player) {
-      player.segments.forEach((segment, index) => {
-        const px = segment.x * CELL_SIZE;
-        const py = segment.y * CELL_SIZE;
-        ctx.fillStyle = index === 0 ? player.headColor : player.color;
-        ctx.fillRect(px + 2, py + 2, CELL_SIZE - 4, CELL_SIZE - 4);
-      });
+    function cellToPxCenter(cell) {
+      return {
+        x: cell.x * CELL_SIZE + CELL_SIZE / 2,
+        y: cell.y * CELL_SIZE + CELL_SIZE / 2
+      };
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function getInterpolatedSegment(player, index, alpha) {
+      const current = player.segments[index] || player.segments[player.segments.length - 1];
+      const previous = player.prevSegments[index] || current;
+
+      const prevPx = cellToPxCenter(previous);
+      const currPx = cellToPxCenter(current);
+
+      return {
+        x: lerp(prevPx.x, currPx.x, alpha),
+        y: lerp(prevPx.y, currPx.y, alpha)
+      };
+    }
+
+    function drawSnake(player, alpha) {
+      const points = player.segments.map((_, i) => getInterpolatedSegment(player, i, alpha));
+
+      // Draw from tail to head so head looks on top.
+      for (let i = points.length - 1; i >= 0; i -= 1) {
+        const point = points[i];
+
+        // Slight taper makes body feel more organic.
+        const taper = i / Math.max(points.length - 1, 1);
+        const radius = lerp(CELL_SIZE * 0.24, CELL_SIZE * 0.42, taper);
+
+        ctx.fillStyle = i === 0 ? player.headColor : player.color;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Gloss highlight for snake.io-like style.
+        ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
+        ctx.beginPath();
+        ctx.arc(point.x - radius * 0.25, point.y - radius * 0.25, radius * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Eyes on the head, positioned based on movement direction.
+      const head = points[0];
+      const dir = player.direction;
+      const rightPerp = { x: -dir.y, y: dir.x };
+      const eyeSpacing = CELL_SIZE * 0.12;
+      const eyeForward = CELL_SIZE * 0.12;
+
+      const eye1 = {
+        x: head.x + dir.x * eyeForward + rightPerp.x * eyeSpacing,
+        y: head.y + dir.y * eyeForward + rightPerp.y * eyeSpacing
+      };
+      const eye2 = {
+        x: head.x + dir.x * eyeForward - rightPerp.x * eyeSpacing,
+        y: head.y + dir.y * eyeForward - rightPerp.y * eyeSpacing
+      };
+
+      for (const eye of [eye1, eye2]) {
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(eye.x, eye.y, CELL_SIZE * 0.08, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#1b1b1b";
+        ctx.beginPath();
+        ctx.arc(
+          eye.x + dir.x * CELL_SIZE * 0.025,
+          eye.y + dir.y * CELL_SIZE * 0.025,
+          CELL_SIZE * 0.04,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+      }
     }
 
     function drawPickup(pickup) {
       const px = pickup.position.x * CELL_SIZE;
       const py = pickup.position.y * CELL_SIZE;
+      const cx = px + CELL_SIZE / 2;
+      const cy = py + CELL_SIZE / 2;
 
       if (pickup.type === "berry") {
+        // Berry cluster
         ctx.fillStyle = "#e04565";
         ctx.beginPath();
-        ctx.arc(px + CELL_SIZE / 2, py + CELL_SIZE / 2, CELL_SIZE / 3.2, 0, Math.PI * 2);
+        ctx.arc(cx - 6, cy + 2, CELL_SIZE / 6, 0, Math.PI * 2);
+        ctx.arc(cx + 6, cy + 2, CELL_SIZE / 6, 0, Math.PI * 2);
+        ctx.arc(cx, cy - 4, CELL_SIZE / 6, 0, Math.PI * 2);
         ctx.fill();
+
+        ctx.strokeStyle = "#6ecf6c";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 10);
+        ctx.quadraticCurveTo(cx + 4, cy - 16, cx + 8, cy - 14);
+        ctx.stroke();
       } else if (pickup.type === "laser") {
         ctx.fillStyle = "#ffd54a";
-        ctx.fillRect(px + 12, py + 8, 16, 24);
-        ctx.fillStyle = "#fff4bf";
-        ctx.fillRect(px + 16, py + 10, 8, 20);
+        ctx.beginPath();
+        ctx.roundRect(px + 12, py + 7, 16, 26, 5);
+        ctx.fill();
+        ctx.fillStyle = "#fff6bf";
+        ctx.fillRect(px + 17, py + 10, 6, 20);
       } else if (pickup.type === "trap") {
         ctx.fillStyle = "#b18cff";
         ctx.beginPath();
-        ctx.moveTo(px + CELL_SIZE / 2, py + 6);
+        ctx.moveTo(cx, py + 6);
         ctx.lineTo(px + CELL_SIZE - 6, py + CELL_SIZE - 6);
         ctx.lineTo(px + 6, py + CELL_SIZE - 6);
         ctx.closePath();
@@ -464,13 +560,16 @@
     function drawTrap(trap) {
       const px = trap.position.x * CELL_SIZE;
       const py = trap.position.y * CELL_SIZE;
-      ctx.fillStyle = "#caa6ff";
+      const pulse = 0.8 + Math.sin(performance.now() * 0.008) * 0.2;
+
+      ctx.fillStyle = `rgba(202, 166, 255, ${pulse})`;
       ctx.fillRect(px + 10, py + 10, CELL_SIZE - 20, CELL_SIZE - 20);
       ctx.strokeStyle = "#5f3ea4";
+      ctx.lineWidth = 2;
       ctx.strokeRect(px + 10, py + 10, CELL_SIZE - 20, CELL_SIZE - 20);
     }
 
-    function render() {
+    function render(alpha) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawGrid();
 
@@ -483,7 +582,7 @@
       }
 
       for (const player of players) {
-        drawSnake(player);
+        drawSnake(player, alpha);
       }
     }
 
@@ -498,7 +597,6 @@
       p2Score.textContent = String(p2.score);
     }
 
-    // Keyboard controls for both players and item usage.
     window.addEventListener("keydown", (event) => {
       const key = event.key;
       const p1 = players[0];
@@ -509,7 +607,6 @@
       }
 
       switch (key.toLowerCase()) {
-        // Player 1 movement (WASD)
         case "w":
           setDirection(p1, { x: 0, y: -1 });
           break;
@@ -522,7 +619,6 @@
         case "d":
           setDirection(p1, { x: 1, y: 0 });
           break;
-        // Player 2 movement (Arrow keys)
         case "arrowup":
           setDirection(p2, { x: 0, y: -1 });
           break;
@@ -535,28 +631,39 @@
         case "arrowright":
           setDirection(p2, { x: 1, y: 0 });
           break;
-        // Use items
         case "f":
           useItem(p1);
           break;
         case "/":
           useItem(p2);
           break;
-        // Restart
         case "r":
           resetGame();
           break;
       }
     });
 
-    function gameLoop() {
-      update();
-      render();
+    // Fixed-tick update + high-FPS rendering for smoother visuals.
+    function gameLoop(timestamp) {
+      if (lastFrameTime === 0) lastFrameTime = timestamp;
+      const delta = timestamp - lastFrameTime;
+      lastFrameTime = timestamp;
+      accumulator += delta;
+
+      while (accumulator >= TICK_MS) {
+        update();
+        accumulator -= TICK_MS;
+      }
+
+      // alpha tells renderer how far we are between logic ticks.
+      const alpha = Math.min(accumulator / TICK_MS, 1);
+      render(alpha);
+      requestAnimationFrame(gameLoop);
     }
 
     resetGame();
-    render();
-    setInterval(gameLoop, TICK_MS);
+    render(1);
+    requestAnimationFrame(gameLoop);
   </script>
 </body>
 </html>
