@@ -3,60 +3,58 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Two-Player Snake: Berries, Lasers, and Traps</title>
+  <title>Snake Arena: 1P vs AI or 2P</title>
   <style>
     :root {
-      --bg: #0f172a;
-      --panel: #1e293b;
-      --grid: #1b2844;
+      --bg: #020617;
+      --panel: #0f172a;
+      --border: #334155;
       --text: #e2e8f0;
+      --muted: #94a3b8;
       --p1: #34d399;
       --p2: #60a5fa;
-      --berry: #ef4444;
-      --laser: #f59e0b;
-      --trap: #a855f7;
+      --accent: #f59e0b;
     }
 
-    * {
-      box-sizing: border-box;
-      font-family: "Trebuchet MS", Arial, sans-serif;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
       min-height: 100vh;
+      background: radial-gradient(circle at top, #1e293b, var(--bg) 70%);
+      color: var(--text);
+      font-family: "Trebuchet MS", Arial, sans-serif;
       display: grid;
       place-items: center;
-      background: radial-gradient(circle at top, #1e293b, #020617 70%);
-      color: var(--text);
       padding: 16px;
     }
 
-    .game-wrap {
-      width: min(96vw, 950px);
-      background: rgba(15, 23, 42, 0.9);
-      border: 2px solid #334155;
+    .wrap {
+      width: min(96vw, 980px);
+      background: rgba(2, 6, 23, 0.85);
+      border: 2px solid var(--border);
       border-radius: 14px;
       padding: 14px;
-      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 14px 42px rgba(0, 0, 0, 0.4);
+      position: relative;
     }
 
     h1 {
-      margin: 6px 0 12px;
+      margin: 4px 0 12px;
       text-align: center;
-      font-size: clamp(1.1rem, 1rem + 1vw, 1.8rem);
+      font-size: clamp(1.2rem, 1rem + 1vw, 1.9rem);
     }
 
     .hud {
       display: grid;
-      grid-template-columns: repeat(2, minmax(230px, 1fr));
+      grid-template-columns: 1fr 1fr;
       gap: 10px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
 
     .panel {
       background: var(--panel);
-      border: 1px solid #334155;
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 8px 10px;
       line-height: 1.4;
@@ -66,59 +64,107 @@
     .p1 { color: var(--p1); }
     .p2 { color: var(--p2); }
 
-    #status {
-      margin-top: 8px;
-      text-align: center;
-      min-height: 1.5em;
-      font-weight: 700;
-    }
-
     #board {
       width: 100%;
       max-width: 900px;
       aspect-ratio: 30 / 20;
       display: block;
       margin: 0 auto;
-      background: var(--grid);
       border: 3px solid #475569;
       border-radius: 10px;
+      background: #1b2844;
     }
 
-    .tiny {
-      font-size: 0.85rem;
-      opacity: 0.92;
+    #status {
+      margin-top: 10px;
+      min-height: 1.4rem;
+      text-align: center;
+      font-weight: 700;
+      color: #f8fafc;
     }
 
-    @media (max-width: 720px) {
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.82);
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+
+    .menu {
+      width: min(90%, 560px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #0f172a;
+      padding: 18px;
+      text-align: center;
+    }
+
+    .menu h2 { margin: 0 0 8px; }
+    .menu p { color: var(--muted); margin: 8px 0 16px; }
+
+    .buttons {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 1px solid #64748b;
+      background: #1e293b;
+      color: #f8fafc;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    button:hover { border-color: var(--accent); }
+
+    .hidden { display: none; }
+
+    @media (max-width: 760px) {
       .hud { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <main class="game-wrap">
-    <h1>🐍 Two-Player Snake Arena</h1>
+  <main class="wrap">
+    <h1>🐍 Snake Arena</h1>
 
     <section class="hud">
       <div class="panel">
         <strong class="p1">Player 1 (WASD)</strong><br />
-        Move: W A S D<br />
-        Use Laser: <strong>F</strong> | Place Trap: <strong>G</strong><br />
-        <span id="p1Info" class="tiny"></span>
+        Move: W A S D | Laser: <strong>F</strong> | Trap: <strong>G</strong><br />
+        <span id="p1Info"></span>
       </div>
       <div class="panel">
-        <strong class="p2">Player 2 (Arrows)</strong><br />
-        Move: ↑ ← ↓ →<br />
-        Use Laser: <strong>/</strong> | Place Trap: <strong>.</strong><br />
-        <span id="p2Info" class="tiny"></span>
+        <strong class="p2" id="p2Title">Player 2 (Arrow Keys)</strong><br />
+        Move: ↑ ← ↓ → | Laser: <strong>/</strong> | Trap: <strong>.</strong><br />
+        <span id="p2Info"></span>
       </div>
     </section>
 
     <canvas id="board" width="900" height="600"></canvas>
-    <div id="status">Collect berries 🍓 to grow! Rare drops: dagger 🗡️ and mirror 🪞.</div>
+    <div id="status">Choose a mode to start.</div>
+
+    <div id="menuOverlay" class="overlay">
+      <div class="menu">
+        <h2>Select Game Mode</h2>
+        <p>Play 2-player local, or 1-player against AI.</p>
+        <div class="buttons">
+          <button id="onePlayerBtn">1 Player vs AI</button>
+          <button id="twoPlayerBtn">2 Players</button>
+        </div>
+      </div>
+    </div>
   </main>
 
   <script>
-    // ======== Core board settings ========
     const COLS = 30;
     const ROWS = 20;
     const CELL = 30;
@@ -133,7 +179,7 @@
 
     const COLORS = {
       board: "#1b2844",
-      grid: "rgba(148, 163, 184, 0.18)",
+      grid: "rgba(148,163,184,0.18)",
       p1Head: "#34d399",
       p1Body: "#059669",
       p2Head: "#60a5fa",
@@ -143,132 +189,135 @@
       trap: "#a855f7",
       dagger: "#f1f5f9",
       mirror: "#93c5fd",
-      laserBeam: "#fbbf24",
-      text: "#e2e8f0"
+      beam: "#fbbf24"
     };
 
     const canvas = document.getElementById("board");
     const ctx = canvas.getContext("2d");
+    const statusEl = document.getElementById("status");
     const p1Info = document.getElementById("p1Info");
     const p2Info = document.getElementById("p2Info");
-    const statusEl = document.getElementById("status");
+    const p2Title = document.getElementById("p2Title");
+    const overlay = document.getElementById("menuOverlay");
 
-    // We keep all game data in one object to make the code easier to read.
+    document.getElementById("onePlayerBtn").addEventListener("click", () => startGame("single"));
+    document.getElementById("twoPlayerBtn").addEventListener("click", () => startGame("multi"));
+
     const game = {
-      running: true,
+      mode: null,
+      running: false,
       winner: null,
       tickMs: 120,
+      players: [],
       items: [],
       traps: [],
-      effects: [],
-      players: [
+      effects: []
+    };
+
+    // Main game loop always runs; game state controls when movement is active.
+    setInterval(tick, game.tickMs);
+    window.addEventListener("keydown", onKeyDown);
+
+    function startGame(mode) {
+      game.mode = mode;
+      game.running = true;
+      game.winner = null;
+      game.items = [];
+      game.traps = [];
+      game.effects = [];
+
+      game.players = [
         {
           id: 1,
           name: "Player 1",
+          isAI: false,
           colorHead: COLORS.p1Head,
           colorBody: COLORS.p1Body,
-          body: [
-            { x: 6, y: 10 },
-            { x: 5, y: 10 },
-            { x: 4, y: 10 },
-            { x: 3, y: 10 }
-          ],
+          body: [{ x: 6, y: 10 }, { x: 5, y: 10 }, { x: 4, y: 10 }, { x: 3, y: 10 }],
           dir: { x: 1, y: 0 },
           nextDir: { x: 1, y: 0 },
           growBy: 0,
           inventory: { laser: 0, trap: 0, dagger: 0, mirror: 0 },
-          controls: {
-            up: "w",
-            left: "a",
-            down: "s",
-            right: "d",
-            useLaser: "f",
-            useTrap: "g"
-          }
+          controls: { up: "w", left: "a", down: "s", right: "d", laser: "f", trap: "g" }
         },
         {
           id: 2,
-          name: "Player 2",
+          name: mode === "single" ? "AI" : "Player 2",
+          isAI: mode === "single",
           colorHead: COLORS.p2Head,
           colorBody: COLORS.p2Body,
-          body: [
-            { x: 23, y: 10 },
-            { x: 24, y: 10 },
-            { x: 25, y: 10 },
-            { x: 26, y: 10 }
-          ],
+          body: [{ x: 23, y: 10 }, { x: 24, y: 10 }, { x: 25, y: 10 }, { x: 26, y: 10 }],
           dir: { x: -1, y: 0 },
           nextDir: { x: -1, y: 0 },
           growBy: 0,
           inventory: { laser: 0, trap: 0, dagger: 0, mirror: 0 },
-          controls: {
-            up: "ArrowUp",
-            left: "ArrowLeft",
-            down: "ArrowDown",
-            right: "ArrowRight",
-            useLaser: "/",
-            useTrap: "."
-          }
+          controls: { up: "ArrowUp", left: "ArrowLeft", down: "ArrowDown", right: "ArrowRight", laser: "/", trap: "." }
         }
-      ]
-    };
+      ];
 
-    // Put a few start items down so game is immediately fun.
-    spawnItem(ITEM_TYPES.BERRY);
-    spawnItem(ITEM_TYPES.BERRY);
-    spawnItem(ITEM_TYPES.LASER);
-    spawnItem(ITEM_TYPES.TRAP);
-    spawnItem(ITEM_TYPES.DAGGER);
+      p2Title.textContent = mode === "single" ? "AI Opponent" : "Player 2 (Arrow Keys)";
+      overlay.classList.add("hidden");
 
-    // Main game loop.
-    let loop = setInterval(tick, game.tickMs);
+      spawnItem(ITEM_TYPES.BERRY);
+      spawnItem(ITEM_TYPES.BERRY);
+      spawnItem(ITEM_TYPES.LASER);
+      spawnItem(ITEM_TYPES.TRAP);
+      spawnItem(ITEM_TYPES.DAGGER);
 
-    window.addEventListener("keydown", onKeyDown);
+      setStatus(mode === "single"
+        ? "1 Player mode started! Beat the AI."
+        : "2 Player mode started! Good luck.");
+      updateHud();
+      render();
+    }
 
     function onKeyDown(event) {
       const key = event.key;
 
-      if (!game.running && key.toLowerCase() === "r") {
-        window.location.reload();
+      if (!game.mode) return;
+
+      if (!game.running && normalize(key) === "r") startGame(game.mode);
+      if (normalize(key) === "m") {
+        game.running = false;
+        game.mode = null;
+        overlay.classList.remove("hidden");
+        setStatus("Choose a mode to start.");
+        return;
       }
 
       for (const player of game.players) {
-        const c = player.controls;
+        if (player.isAI) continue;
 
-        // Set snake direction (and prevent 180-degree turns).
-        if (key === c.up) trySetDirection(player, 0, -1);
-        if (key === c.down) trySetDirection(player, 0, 1);
-        if (key === c.left) trySetDirection(player, -1, 0);
-        if (key === c.right) trySetDirection(player, 1, 0);
+        if (key === player.controls.up) trySetDirection(player, 0, -1);
+        if (key === player.controls.down) trySetDirection(player, 0, 1);
+        if (key === player.controls.left) trySetDirection(player, -1, 0);
+        if (key === player.controls.right) trySetDirection(player, 1, 0);
 
-        // Item usage keys: player can save items and use later.
-        if (normalize(key) === normalize(c.useLaser)) useLaser(player);
-        if (normalize(key) === normalize(c.useTrap)) placeTrap(player);
+        if (normalize(key) === normalize(player.controls.laser)) useLaser(player);
+        if (normalize(key) === normalize(player.controls.trap)) placeTrap(player);
       }
     }
 
     function tick() {
-      if (!game.running) {
+      if (!game.running || !game.mode) {
         render();
         return;
       }
 
-      // Move both snakes.
+      const ai = game.players[1];
+      if (ai && ai.isAI) {
+        aiChooseDirection(ai);
+        aiUseItems(ai);
+      }
+
       for (const player of game.players) {
         player.dir = { ...player.nextDir };
-        const oldHead = player.body[0];
-        const newHead = {
-          x: oldHead.x + player.dir.x,
-          y: oldHead.y + player.dir.y
-        };
 
-        player.body.unshift(newHead);
+        const head = player.body[0];
+        player.body.unshift({ x: head.x + player.dir.x, y: head.y + player.dir.y });
 
-        if (player.growBy > 0) {
-          player.growBy -= 1;
-        } else {
-          player.body.pop();
-        }
+        if (player.growBy > 0) player.growBy -= 1;
+        else player.body.pop();
       }
 
       checkItemPickups();
@@ -280,91 +329,127 @@
       render();
     }
 
+    function aiChooseDirection(ai) {
+      const options = [
+        { x: 0, y: -1 },
+        { x: 1, y: 0 },
+        { x: 0, y: 1 },
+        { x: -1, y: 0 }
+      ];
+
+      const valid = options.filter((d) => !(d.x === -ai.dir.x && d.y === -ai.dir.y));
+      const target = findBestTarget(ai);
+
+      const scored = valid.map((d) => {
+        const nx = ai.body[0].x + d.x;
+        const ny = ai.body[0].y + d.y;
+        let risk = 0;
+
+        // "Realistic" AI: avoid immediate death first.
+        if (!inBounds(nx, ny)) risk += 1000;
+        if (cellInSnake(nx, ny, ai.body.slice(0, -1))) risk += 700;
+
+        const enemy = getOpponent(ai);
+        if (cellInSnake(nx, ny, enemy.body)) risk += 700;
+
+        const trap = game.traps.find((t) => t.x === nx && t.y === ny && t.ownerId !== ai.id);
+        if (trap) risk += 200;
+
+        const dist = target ? manhattan(nx, ny, target.x, target.y) : 8;
+        const jitter = Math.random() * 0.5;
+
+        return { dir: d, score: risk + dist + jitter };
+      });
+
+      scored.sort((a, b) => a.score - b.score);
+      if (scored[0]) ai.nextDir = scored[0].dir;
+    }
+
+    function aiUseItems(ai) {
+      const enemy = getOpponent(ai);
+      const aligned = (ai.dir.x !== 0 && ai.body[0].y === enemy.body[0].y)
+        || (ai.dir.y !== 0 && ai.body[0].x === enemy.body[0].x);
+
+      if (ai.inventory.laser > 0 && aligned && Math.random() < 0.2) useLaser(ai);
+      if (ai.inventory.trap > 0 && Math.random() < 0.08) placeTrap(ai);
+    }
+
+    function findBestTarget(player) {
+      const berries = game.items.filter((i) => i.type === ITEM_TYPES.BERRY);
+      const pickups = berries.length > 0 ? berries : game.items;
+      if (pickups.length === 0) return null;
+
+      const hx = player.body[0].x;
+      const hy = player.body[0].y;
+
+      pickups.sort((a, b) => manhattan(hx, hy, a.x, a.y) - manhattan(hx, hy, b.x, b.y));
+      return pickups[0];
+    }
+
     function trySetDirection(player, dx, dy) {
-      // Don\'t allow direct reverse direction because that breaks snake movement.
       if (dx === -player.dir.x && dy === -player.dir.y) return;
       player.nextDir = { x: dx, y: dy };
     }
 
     function useLaser(player) {
-      if (!game.running) return;
-      if (player.inventory.laser <= 0) return;
-
+      if (!game.running || player.inventory.laser <= 0) return;
       player.inventory.laser -= 1;
 
       const enemy = getOpponent(player);
-      const head = player.body[0];
-      let x = head.x + player.dir.x;
-      let y = head.y + player.dir.y;
+      const cells = [];
+      let x = player.body[0].x + player.dir.x;
+      let y = player.body[0].y + player.dir.y;
 
-      const beamCells = [];
       while (inBounds(x, y)) {
-        beamCells.push({ x, y });
+        cells.push({ x, y });
         x += player.dir.x;
         y += player.dir.y;
       }
 
-      // Laser effect visual for a short moment.
-      game.effects.push({
-        type: "laser",
-        cells: beamCells,
-        ttl: 5
-      });
+      game.effects.push({ type: "laser", cells, ttl: 5 });
 
-      // If laser hits enemy, remove up to 2 tail pieces.
-      const hitIndex = enemy.body.findIndex((seg) =>
-        beamCells.some((cell) => cell.x === seg.x && cell.y === seg.y)
-      );
-      if (hitIndex !== -1) {
-        // Mirror is passive: if you have one, it auto-reflects one incoming laser.
+      const hitEnemy = enemy.body.some((seg) => cells.some((c) => c.x === seg.x && c.y === seg.y));
+      if (hitEnemy) {
         if (enemy.inventory.mirror > 0) {
           enemy.inventory.mirror -= 1;
           shrinkSnake(player, 2);
-          setStatus(`${enemy.name} reflected the laser with a mirror! ${player.name} lost 2 segments.`);
+          setStatus(`${enemy.name} reflected the laser! ${player.name} loses 2.`);
         } else {
           shrinkSnake(enemy, 2);
-          setStatus(`${player.name} fired a laser! ${enemy.name} lost 2 segments.`);
+          setStatus(`${player.name} laser hit! ${enemy.name} loses 2.`);
         }
       } else {
-        setStatus(`${player.name} fired a laser, but missed.`);
+        setStatus(`${player.name} fired a laser but missed.`);
       }
-
-      updateHud();
     }
 
     function placeTrap(player) {
-      if (!game.running) return;
-      if (player.inventory.trap <= 0) return;
-
+      if (!game.running || player.inventory.trap <= 0) return;
       const head = player.body[0];
-      const trapCell = { x: head.x, y: head.y, ownerId: player.id, ttl: 220 };
 
-      // Don\'t stack many traps on same cell.
-      const occupied = game.traps.some((t) => t.x === trapCell.x && t.y === trapCell.y);
-      if (occupied) return;
+      if (game.traps.some((t) => t.x === head.x && t.y === head.y)) return;
 
       player.inventory.trap -= 1;
-      game.traps.push(trapCell);
+      game.traps.push({ x: head.x, y: head.y, ownerId: player.id, ttl: 220 });
       setStatus(`${player.name} placed a trap.`);
-      updateHud();
     }
 
     function checkItemPickups() {
       for (const player of game.players) {
         const head = player.body[0];
-        const itemIndex = game.items.findIndex((item) => item.x === head.x && item.y === head.y);
-        if (itemIndex === -1) continue;
+        const idx = game.items.findIndex((i) => i.x === head.x && i.y === head.y);
+        if (idx === -1) continue;
 
-        const item = game.items[itemIndex];
-        game.items.splice(itemIndex, 1);
+        const item = game.items[idx];
+        game.items.splice(idx, 1);
 
         if (item.type === ITEM_TYPES.BERRY) {
           player.growBy += 2;
-          setStatus(`${player.name} ate berries and grew longer!`);
+          setStatus(`${player.name} ate berries and grew!`);
         }
         if (item.type === ITEM_TYPES.LASER) {
           player.inventory.laser += 1;
-          setStatus(`${player.name} picked up a laser charge.`);
+          setStatus(`${player.name} picked up a laser.`);
         }
         if (item.type === ITEM_TYPES.TRAP) {
           player.inventory.trap += 1;
@@ -372,11 +457,11 @@
         }
         if (item.type === ITEM_TYPES.DAGGER) {
           player.inventory.dagger += 1;
-          setStatus(`${player.name} picked up a rare dagger!`);
+          setStatus(`${player.name} found a rare dagger!`);
         }
         if (item.type === ITEM_TYPES.MIRROR) {
           player.inventory.mirror += 1;
-          setStatus(`${player.name} picked up a rare mirror!`);
+          setStatus(`${player.name} found a rare mirror!`);
         }
       }
     }
@@ -384,98 +469,71 @@
     function checkTrapHits() {
       for (const player of game.players) {
         const head = player.body[0];
-        const trapIndex = game.traps.findIndex((trap) =>
-          trap.x === head.x && trap.y === head.y && trap.ownerId !== player.id
-        );
-
-        if (trapIndex !== -1) {
-          game.traps.splice(trapIndex, 1);
+        const trapIdx = game.traps.findIndex((t) => t.x === head.x && t.y === head.y && t.ownerId !== player.id);
+        if (trapIdx !== -1) {
+          game.traps.splice(trapIdx, 1);
           shrinkSnake(player, 2);
-          setStatus(`${player.name} hit a trap and lost 2 segments!`);
+          setStatus(`${player.name} hit a trap and lost 2!`);
         }
       }
 
-      // Age and clear old traps.
-      for (const trap of game.traps) trap.ttl -= 1;
-      game.traps = game.traps.filter((trap) => trap.ttl > 0);
+      game.traps.forEach((t) => t.ttl -= 1);
+      game.traps = game.traps.filter((t) => t.ttl > 0);
     }
 
     function checkCollisions() {
       const [p1, p2] = game.players;
 
-      // Wall collisions.
-      if (!inBounds(p1.body[0].x, p1.body[0].y)) {
-        if (!useDaggerIfAvailable(p1, p2, "hit the wall")) return endGame(p2, "Player 1 hit the wall.");
-      }
-      if (!inBounds(p2.body[0].x, p2.body[0].y)) {
-        if (!useDaggerIfAvailable(p2, p1, "hit the wall")) return endGame(p1, "Player 2 hit the wall.");
-      }
+      if (!inBounds(p1.body[0].x, p1.body[0].y) && !useDaggerIfAvailable(p1, p2, "hit the wall")) return endGame(p2, `${p1.name} hit the wall.`);
+      if (!inBounds(p2.body[0].x, p2.body[0].y) && !useDaggerIfAvailable(p2, p1, "hit the wall")) return endGame(p1, `${p2.name} hit the wall.`);
 
-      // Self collisions.
-      if (hitsOwnBody(p1)) {
-        if (!useDaggerIfAvailable(p1, p2, "hit their own body")) return endGame(p2, "Player 1 hit their own body.");
-      }
-      if (hitsOwnBody(p2)) {
-        if (!useDaggerIfAvailable(p2, p1, "hit their own body")) return endGame(p1, "Player 2 hit their own body.");
-      }
+      if (hitsOwnBody(p1) && !useDaggerIfAvailable(p1, p2, "hit their own body")) return endGame(p2, `${p1.name} hit their own body.`);
+      if (hitsOwnBody(p2) && !useDaggerIfAvailable(p2, p1, "hit their own body")) return endGame(p1, `${p2.name} hit their own body.`);
 
-      // Head-to-head tie case.
+      if (hitsOtherBody(p1, p2) && !useDaggerIfAvailable(p1, p2, `crashed into ${p2.name}`)) return endGame(p2, `${p1.name} crashed.`);
+      if (hitsOtherBody(p2, p1) && !useDaggerIfAvailable(p2, p1, `crashed into ${p1.name}`)) return endGame(p1, `${p2.name} crashed.`);
+
       if (p1.body[0].x === p2.body[0].x && p1.body[0].y === p2.body[0].y) {
         const p1Saved = useDaggerIfAvailable(p1, p2, "collided head-to-head");
         const p2Saved = useDaggerIfAvailable(p2, p1, "collided head-to-head");
         if (!p1Saved && !p2Saved) {
           game.running = false;
           game.winner = null;
-          setStatus("Tie! Both snakes collided head-to-head. Press R to restart.");
+          setStatus("Tie game! Press R to replay or M for menu.");
         }
       }
 
-      // Hitting opponent\'s body.
-      if (hitsOtherBody(p1, p2)) {
-        if (!useDaggerIfAvailable(p1, p2, "crashed into Player 2")) return endGame(p2, "Player 1 crashed into Player 2.");
-      }
-      if (hitsOtherBody(p2, p1)) {
-        if (!useDaggerIfAvailable(p2, p1, "crashed into Player 1")) return endGame(p1, "Player 2 crashed into Player 1.");
-      }
-
-      // If a snake gets too short from weapons/traps, they lose.
-      if (p1.body.length < 3) return endGame(p2, "Player 1 became too short to continue.");
-      if (p2.body.length < 3) return endGame(p1, "Player 2 became too short to continue.");
-    }
-
-    function maybeSpawnItems() {
-      // Keep at least 3 items on board, with at least one berry.
-      const berryCount = game.items.filter((i) => i.type === ITEM_TYPES.BERRY).length;
-      if (berryCount < 1) spawnItem(ITEM_TYPES.BERRY);
-
-      if (game.items.length < 3) {
-        const roll = Math.random();
-        if (roll < 0.5) spawnItem(ITEM_TYPES.BERRY);
-        else if (roll < 0.76) spawnItem(ITEM_TYPES.LASER);
-        else if (roll < 0.96) spawnItem(ITEM_TYPES.TRAP);
-        else if (roll < 0.985) spawnItem(ITEM_TYPES.DAGGER); // rare
-        else spawnItem(ITEM_TYPES.MIRROR); // very rare
-      }
+      if (p1.body.length < 3) return endGame(p2, `${p1.name} became too short.`);
+      if (p2.body.length < 3) return endGame(p1, `${p2.name} became too short.`);
     }
 
     function useDaggerIfAvailable(player, opponent, reason) {
       if (player.inventory.dagger <= 0) return false;
-
       player.inventory.dagger -= 1;
       shrinkSnake(opponent, 3);
 
-      // Rescue the player by rewinding one step (remove current bad head position).
-      if (player.body.length > 1) {
-        player.body.shift();
-      }
+      // Remove the invalid head position to "save" this crash.
+      if (player.body.length > 1) player.body.shift();
 
-      setStatus(`${player.name} used a dagger after they ${reason}! ${opponent.name}'s tail was cut.`);
-      updateHud();
+      setStatus(`${player.name} used a dagger after they ${reason}. ${opponent.name} loses 3!`);
       return true;
     }
 
+    function maybeSpawnItems() {
+      const berryCount = game.items.filter((i) => i.type === ITEM_TYPES.BERRY).length;
+      if (berryCount < 1) spawnItem(ITEM_TYPES.BERRY);
+
+      if (game.items.length < 3) {
+        const r = Math.random();
+        if (r < 0.5) spawnItem(ITEM_TYPES.BERRY);
+        else if (r < 0.76) spawnItem(ITEM_TYPES.LASER);
+        else if (r < 0.96) spawnItem(ITEM_TYPES.TRAP);
+        else if (r < 0.985) spawnItem(ITEM_TYPES.DAGGER);
+        else spawnItem(ITEM_TYPES.MIRROR);
+      }
+    }
+
     function spawnItem(type) {
-      // Find open random position not occupied by snakes/traps/items.
       for (let tries = 0; tries < 300; tries += 1) {
         const x = randInt(0, COLS - 1);
         const y = randInt(0, ROWS - 1);
@@ -487,65 +545,30 @@
     }
 
     function isCellOpen(x, y) {
+      if (game.items.some((i) => i.x === x && i.y === y)) return false;
+      if (game.traps.some((t) => t.x === x && t.y === y)) return false;
       for (const p of game.players) {
-        if (p.body.some((seg) => seg.x === x && seg.y === y)) return false;
+        if (cellInSnake(x, y, p.body)) return false;
       }
-      if (game.items.some((item) => item.x === x && item.y === y)) return false;
-      if (game.traps.some((trap) => trap.x === x && trap.y === y)) return false;
       return true;
     }
 
-    function hitsOwnBody(player) {
-      const head = player.body[0];
-      return player.body.slice(1).some((seg) => seg.x === head.x && seg.y === head.y);
-    }
-
-    function hitsOtherBody(player, opponent) {
-      const head = player.body[0];
-      return opponent.body.some((seg) => seg.x === head.x && seg.y === head.y);
-    }
-
-    function shrinkSnake(player, amount) {
-      // Keep at least 1 segment so rendering still works.
-      const newLen = Math.max(1, player.body.length - amount);
-      player.body = player.body.slice(0, newLen);
-    }
-
     function updateEffects() {
-      for (const effect of game.effects) effect.ttl -= 1;
-      game.effects = game.effects.filter((effect) => effect.ttl > 0);
+      game.effects.forEach((e) => e.ttl -= 1);
+      game.effects = game.effects.filter((e) => e.ttl > 0);
     }
 
     function endGame(winner, reason) {
       game.running = false;
       game.winner = winner;
-      setStatus(`🏁 ${winner.name} wins! ${reason} Press R to restart.`);
-    }
-
-    function inBounds(x, y) {
-      return x >= 0 && x < COLS && y >= 0 && y < ROWS;
-    }
-
-    function getOpponent(player) {
-      return game.players.find((p) => p.id !== player.id);
-    }
-
-    function randInt(min, max) {
-      return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
-
-    function normalize(value) {
-      return String(value).toLowerCase();
-    }
-
-    function setStatus(message) {
-      statusEl.textContent = message;
+      setStatus(`🏁 ${winner.name} wins! ${reason} Press R to replay, M for menu.`);
     }
 
     function updateHud() {
+      if (!game.players.length) return;
       const [p1, p2] = game.players;
-      p1Info.textContent = `Length: ${p1.body.length} | Lasers: ${p1.inventory.laser} | Traps: ${p1.inventory.trap} | Daggers: ${p1.inventory.dagger} | Mirrors: ${p1.inventory.mirror}`;
-      p2Info.textContent = `Length: ${p2.body.length} | Lasers: ${p2.inventory.laser} | Traps: ${p2.inventory.trap} | Daggers: ${p2.inventory.dagger} | Mirrors: ${p2.inventory.mirror}`;
+      p1Info.textContent = `Length ${p1.body.length} | Lasers ${p1.inventory.laser} | Traps ${p1.inventory.trap} | Daggers ${p1.inventory.dagger} | Mirrors ${p1.inventory.mirror}`;
+      p2Info.textContent = `Length ${p2.body.length} | Lasers ${p2.inventory.laser} | Traps ${p2.inventory.trap} | Daggers ${p2.inventory.dagger} | Mirrors ${p2.inventory.mirror}`;
     }
 
     function render() {
@@ -556,32 +579,30 @@
       drawItems();
       drawTraps();
       drawLaserEffects();
-      drawSnake(game.players[0]);
-      drawSnake(game.players[1]);
 
-      if (!game.running) {
+      for (const p of game.players) drawSnake(p);
+
+      if (game.mode && !game.running) {
         ctx.fillStyle = "rgba(2, 6, 23, 0.65)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = COLORS.text;
+        ctx.fillStyle = "#e2e8f0";
         ctx.textAlign = "center";
-        ctx.font = "bold 42px Trebuchet MS";
-        ctx.fillText(game.winner ? `${game.winner.name} Wins!` : "Tie Game!", canvas.width / 2, canvas.height / 2 - 10);
+        ctx.font = "bold 40px Trebuchet MS";
+        ctx.fillText(game.winner ? `${game.winner.name} Wins!` : "Tie!", canvas.width / 2, canvas.height / 2 - 10);
         ctx.font = "20px Trebuchet MS";
-        ctx.fillText("Press R to restart", canvas.width / 2, canvas.height / 2 + 30);
+        ctx.fillText("Press R to replay, M for menu", canvas.width / 2, canvas.height / 2 + 28);
       }
     }
 
     function drawGrid() {
       ctx.strokeStyle = COLORS.grid;
       ctx.lineWidth = 1;
-
       for (let x = 0; x <= COLS; x += 1) {
         ctx.beginPath();
         ctx.moveTo(x * CELL, 0);
         ctx.lineTo(x * CELL, canvas.height);
         ctx.stroke();
       }
-
       for (let y = 0; y <= ROWS; y += 1) {
         ctx.beginPath();
         ctx.moveTo(0, y * CELL);
@@ -593,13 +614,8 @@
     function drawSnake(player) {
       player.body.forEach((seg, idx) => {
         ctx.fillStyle = idx === 0 ? player.colorHead : player.colorBody;
-        const padding = idx === 0 ? 2 : 4;
-        ctx.fillRect(
-          seg.x * CELL + padding,
-          seg.y * CELL + padding,
-          CELL - padding * 2,
-          CELL - padding * 2
-        );
+        const pad = idx === 0 ? 2 : 4;
+        ctx.fillRect(seg.x * CELL + pad, seg.y * CELL + pad, CELL - pad * 2, CELL - pad * 2);
       });
     }
 
@@ -609,12 +625,10 @@
         const cy = item.y * CELL + CELL / 2;
 
         if (item.type === ITEM_TYPES.BERRY) {
-          // Berry = red circle + tiny green leaf.
           ctx.fillStyle = COLORS.berry;
           ctx.beginPath();
           ctx.arc(cx, cy, CELL * 0.25, 0, Math.PI * 2);
           ctx.fill();
-
           ctx.fillStyle = "#22c55e";
           ctx.fillRect(cx - 3, cy - 12, 6, 4);
         }
@@ -674,14 +688,55 @@
     function drawLaserEffects() {
       for (const effect of game.effects) {
         if (effect.type !== "laser") continue;
-        ctx.fillStyle = COLORS.laserBeam;
+        ctx.fillStyle = COLORS.beam;
         for (const cell of effect.cells) {
           ctx.fillRect(cell.x * CELL + 11, cell.y * CELL + 11, CELL - 22, CELL - 22);
         }
       }
     }
 
-    updateHud();
+    function hitsOwnBody(player) {
+      const head = player.body[0];
+      return player.body.slice(1).some((s) => s.x === head.x && s.y === head.y);
+    }
+
+    function hitsOtherBody(player, enemy) {
+      const head = player.body[0];
+      return enemy.body.some((s) => s.x === head.x && s.y === head.y);
+    }
+
+    function shrinkSnake(player, amount) {
+      player.body = player.body.slice(0, Math.max(1, player.body.length - amount));
+    }
+
+    function cellInSnake(x, y, body) {
+      return body.some((s) => s.x === x && s.y === y);
+    }
+
+    function getOpponent(player) {
+      return game.players.find((p) => p.id !== player.id);
+    }
+
+    function inBounds(x, y) {
+      return x >= 0 && x < COLS && y >= 0 && y < ROWS;
+    }
+
+    function manhattan(ax, ay, bx, by) {
+      return Math.abs(ax - bx) + Math.abs(ay - by);
+    }
+
+    function randInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function normalize(v) {
+      return String(v).toLowerCase();
+    }
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+    }
+
     render();
   </script>
 </body>
