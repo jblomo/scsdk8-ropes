@@ -114,7 +114,7 @@
     </section>
 
     <canvas id="board" width="900" height="600"></canvas>
-    <div id="status">Collect berries 🍓 to grow! Pick up lasers and traps, then use them later.</div>
+    <div id="status">Collect berries 🍓 to grow! Rare drops: dagger 🗡️ and mirror 🪞.</div>
   </main>
 
   <script>
@@ -126,7 +126,9 @@
     const ITEM_TYPES = {
       BERRY: "berry",
       LASER: "laser",
-      TRAP: "trap"
+      TRAP: "trap",
+      DAGGER: "dagger",
+      MIRROR: "mirror"
     };
 
     const COLORS = {
@@ -139,6 +141,8 @@
       berry: "#ef4444",
       laser: "#f59e0b",
       trap: "#a855f7",
+      dagger: "#f1f5f9",
+      mirror: "#93c5fd",
       laserBeam: "#fbbf24",
       text: "#e2e8f0"
     };
@@ -172,7 +176,7 @@
           dir: { x: 1, y: 0 },
           nextDir: { x: 1, y: 0 },
           growBy: 0,
-          inventory: { laser: 0, trap: 0 },
+          inventory: { laser: 0, trap: 0, dagger: 0, mirror: 0 },
           controls: {
             up: "w",
             left: "a",
@@ -196,7 +200,7 @@
           dir: { x: -1, y: 0 },
           nextDir: { x: -1, y: 0 },
           growBy: 0,
-          inventory: { laser: 0, trap: 0 },
+          inventory: { laser: 0, trap: 0, dagger: 0, mirror: 0 },
           controls: {
             up: "ArrowUp",
             left: "ArrowLeft",
@@ -214,6 +218,7 @@
     spawnItem(ITEM_TYPES.BERRY);
     spawnItem(ITEM_TYPES.LASER);
     spawnItem(ITEM_TYPES.TRAP);
+    spawnItem(ITEM_TYPES.DAGGER);
 
     // Main game loop.
     let loop = setInterval(tick, game.tickMs);
@@ -311,8 +316,15 @@
         beamCells.some((cell) => cell.x === seg.x && cell.y === seg.y)
       );
       if (hitIndex !== -1) {
-        shrinkSnake(enemy, 2);
-        setStatus(`${player.name} fired a laser! ${enemy.name} lost 2 segments.`);
+        // Mirror is passive: if you have one, it auto-reflects one incoming laser.
+        if (enemy.inventory.mirror > 0) {
+          enemy.inventory.mirror -= 1;
+          shrinkSnake(player, 2);
+          setStatus(`${enemy.name} reflected the laser with a mirror! ${player.name} lost 2 segments.`);
+        } else {
+          shrinkSnake(enemy, 2);
+          setStatus(`${player.name} fired a laser! ${enemy.name} lost 2 segments.`);
+        }
       } else {
         setStatus(`${player.name} fired a laser, but missed.`);
       }
@@ -358,6 +370,14 @@
           player.inventory.trap += 1;
           setStatus(`${player.name} picked up a trap.`);
         }
+        if (item.type === ITEM_TYPES.DAGGER) {
+          player.inventory.dagger += 1;
+          setStatus(`${player.name} picked up a rare dagger!`);
+        }
+        if (item.type === ITEM_TYPES.MIRROR) {
+          player.inventory.mirror += 1;
+          setStatus(`${player.name} picked up a rare mirror!`);
+        }
       }
     }
 
@@ -384,23 +404,39 @@
       const [p1, p2] = game.players;
 
       // Wall collisions.
-      if (!inBounds(p1.body[0].x, p1.body[0].y)) return endGame(p2, "Player 1 hit the wall.");
-      if (!inBounds(p2.body[0].x, p2.body[0].y)) return endGame(p1, "Player 2 hit the wall.");
+      if (!inBounds(p1.body[0].x, p1.body[0].y)) {
+        if (!useDaggerIfAvailable(p1, p2, "hit the wall")) return endGame(p2, "Player 1 hit the wall.");
+      }
+      if (!inBounds(p2.body[0].x, p2.body[0].y)) {
+        if (!useDaggerIfAvailable(p2, p1, "hit the wall")) return endGame(p1, "Player 2 hit the wall.");
+      }
 
       // Self collisions.
-      if (hitsOwnBody(p1)) return endGame(p2, "Player 1 hit their own body.");
-      if (hitsOwnBody(p2)) return endGame(p1, "Player 2 hit their own body.");
+      if (hitsOwnBody(p1)) {
+        if (!useDaggerIfAvailable(p1, p2, "hit their own body")) return endGame(p2, "Player 1 hit their own body.");
+      }
+      if (hitsOwnBody(p2)) {
+        if (!useDaggerIfAvailable(p2, p1, "hit their own body")) return endGame(p1, "Player 2 hit their own body.");
+      }
 
       // Head-to-head tie case.
       if (p1.body[0].x === p2.body[0].x && p1.body[0].y === p2.body[0].y) {
-        game.running = false;
-        game.winner = null;
-        setStatus("Tie! Both snakes collided head-to-head. Press R to restart.");
+        const p1Saved = useDaggerIfAvailable(p1, p2, "collided head-to-head");
+        const p2Saved = useDaggerIfAvailable(p2, p1, "collided head-to-head");
+        if (!p1Saved && !p2Saved) {
+          game.running = false;
+          game.winner = null;
+          setStatus("Tie! Both snakes collided head-to-head. Press R to restart.");
+        }
       }
 
       // Hitting opponent\'s body.
-      if (hitsOtherBody(p1, p2)) return endGame(p2, "Player 1 crashed into Player 2.");
-      if (hitsOtherBody(p2, p1)) return endGame(p1, "Player 2 crashed into Player 1.");
+      if (hitsOtherBody(p1, p2)) {
+        if (!useDaggerIfAvailable(p1, p2, "crashed into Player 2")) return endGame(p2, "Player 1 crashed into Player 2.");
+      }
+      if (hitsOtherBody(p2, p1)) {
+        if (!useDaggerIfAvailable(p2, p1, "crashed into Player 1")) return endGame(p1, "Player 2 crashed into Player 1.");
+      }
 
       // If a snake gets too short from weapons/traps, they lose.
       if (p1.body.length < 3) return endGame(p2, "Player 1 became too short to continue.");
@@ -414,10 +450,28 @@
 
       if (game.items.length < 3) {
         const roll = Math.random();
-        if (roll < 0.55) spawnItem(ITEM_TYPES.BERRY);
-        else if (roll < 0.8) spawnItem(ITEM_TYPES.LASER);
-        else spawnItem(ITEM_TYPES.TRAP);
+        if (roll < 0.5) spawnItem(ITEM_TYPES.BERRY);
+        else if (roll < 0.76) spawnItem(ITEM_TYPES.LASER);
+        else if (roll < 0.96) spawnItem(ITEM_TYPES.TRAP);
+        else if (roll < 0.985) spawnItem(ITEM_TYPES.DAGGER); // rare
+        else spawnItem(ITEM_TYPES.MIRROR); // very rare
       }
+    }
+
+    function useDaggerIfAvailable(player, opponent, reason) {
+      if (player.inventory.dagger <= 0) return false;
+
+      player.inventory.dagger -= 1;
+      shrinkSnake(opponent, 3);
+
+      // Rescue the player by rewinding one step (remove current bad head position).
+      if (player.body.length > 1) {
+        player.body.shift();
+      }
+
+      setStatus(`${player.name} used a dagger after they ${reason}! ${opponent.name}'s tail was cut.`);
+      updateHud();
+      return true;
     }
 
     function spawnItem(type) {
@@ -490,8 +544,8 @@
 
     function updateHud() {
       const [p1, p2] = game.players;
-      p1Info.textContent = `Length: ${p1.body.length} | Lasers: ${p1.inventory.laser} | Traps: ${p1.inventory.trap}`;
-      p2Info.textContent = `Length: ${p2.body.length} | Lasers: ${p2.inventory.laser} | Traps: ${p2.inventory.trap}`;
+      p1Info.textContent = `Length: ${p1.body.length} | Lasers: ${p1.inventory.laser} | Traps: ${p1.inventory.trap} | Daggers: ${p1.inventory.dagger} | Mirrors: ${p1.inventory.mirror}`;
+      p2Info.textContent = `Length: ${p2.body.length} | Lasers: ${p2.inventory.laser} | Traps: ${p2.inventory.trap} | Daggers: ${p2.inventory.dagger} | Mirrors: ${p2.inventory.mirror}`;
     }
 
     function render() {
@@ -583,6 +637,29 @@
           ctx.moveTo(cx + 8, cy - 8);
           ctx.lineTo(cx - 8, cy + 8);
           ctx.stroke();
+        }
+
+        if (item.type === ITEM_TYPES.DAGGER) {
+          ctx.fillStyle = COLORS.dagger;
+          ctx.fillRect(item.x * CELL + 13, item.y * CELL + 7, 4, 17);
+          ctx.fillRect(item.x * CELL + 10, item.y * CELL + 20, 10, 3);
+          ctx.fillStyle = "#94a3b8";
+          ctx.beginPath();
+          ctx.moveTo(item.x * CELL + 15, item.y * CELL + 4);
+          ctx.lineTo(item.x * CELL + 12, item.y * CELL + 9);
+          ctx.lineTo(item.x * CELL + 18, item.y * CELL + 9);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        if (item.type === ITEM_TYPES.MIRROR) {
+          ctx.strokeStyle = COLORS.mirror;
+          ctx.lineWidth = 3;
+          ctx.strokeRect(item.x * CELL + 9, item.y * CELL + 8, 12, 14);
+          ctx.fillStyle = "rgba(191, 219, 254, 0.45)";
+          ctx.fillRect(item.x * CELL + 11, item.y * CELL + 10, 8, 10);
+          ctx.fillStyle = "#64748b";
+          ctx.fillRect(item.x * CELL + 13, item.y * CELL + 22, 4, 4);
         }
       }
     }
