@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snake Arena: 1P vs AI or 2P</title>
+  <style>
+    :root {
+      --bg: #020617;
+      --panel: #0f172a;
+      --border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --p1: #34d399;
+      --p2: #60a5fa;
+      --accent: #f59e0b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #1e293b, var(--bg) 70%);
+      color: var(--text);
+      font-family: "Trebuchet MS", Arial, sans-serif;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+
+    .wrap {
+      width: min(96vw, 980px);
+      background: rgba(2, 6, 23, 0.85);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 14px 42px rgba(0, 0, 0, 0.4);
+      position: relative;
+    }
+
+    h1 {
+      margin: 4px 0 12px;
+      text-align: center;
+      font-size: clamp(1.2rem, 1rem + 1vw, 1.9rem);
+    }
+
+    .hud {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px;
+      line-height: 1.4;
+      font-size: 0.95rem;
+    }
+
+    .p1 { color: var(--p1); }
+    .p2 { color: var(--p2); }
+
+    #board {
+      width: 100%;
+      max-width: 900px;
+      aspect-ratio: 30 / 20;
+      display: block;
+      margin: 0 auto;
+      border: 3px solid #475569;
+      border-radius: 10px;
+      background: #1b2844;
+    }
+
+    #status {
+      margin-top: 10px;
+      min-height: 1.4rem;
+      text-align: center;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.82);
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+
+    .menu {
+      width: min(90%, 560px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #0f172a;
+      padding: 18px;
+      text-align: center;
+    }
+
+    .menu h2 { margin: 0 0 8px; }
+    .menu p { color: var(--muted); margin: 8px 0 16px; }
+
+    .buttons {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 1px solid #64748b;
+      background: #1e293b;
+      color: #f8fafc;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    button:hover { border-color: var(--accent); }
+
+    .hidden { display: none; }
+
+    @media (max-width: 760px) {
+      .hud { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>🐍 Snake Arena</h1>
+
+    <section class="hud">
+      <div class="panel">
+        <strong class="p1">Player 1 (WASD)</strong><br />
+        Move: W A S D | Laser: <strong>F</strong> | Trap: <strong>G</strong><br />
+        <span id="p1Info"></span>
+      </div>
+      <div class="panel">
+        <strong class="p2" id="p2Title">Player 2 (Arrow Keys)</strong><br />
+        Move: ↑ ← ↓ → | Laser: <strong>/</strong> | Trap: <strong>.</strong><br />
+        <span id="p2Info"></span>
+      </div>
+    </section>
+
+    <canvas id="board" width="900" height="600"></canvas>
+    <div id="status">Choose a mode to start.</div>
+
+    <div id="menuOverlay" class="overlay">
+      <div class="menu">
+        <h2>Select Game Mode</h2>
+        <p>Play 2-player local, or 1-player against AI.</p>
+        <div class="buttons">
+          <button id="onePlayerBtn">1 Player vs AI</button>
+          <button id="twoPlayerBtn">2 Players</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const COLS = 30;
+    const ROWS = 20;
+    const CELL = 30;
+
+    const ITEM_TYPES = {
+      BERRY: "berry",
+      LASER: "laser",
+      TRAP: "trap",
+      DAGGER: "dagger",
+      MIRROR: "mirror"
+    };
+
+    const COLORS = {
+      board: "#1b2844",
+      grid: "rgba(148,163,184,0.18)",
+      p1Head: "#34d399",
+      p1Body: "#059669",
+      p2Head: "#60a5fa",
+      p2Body: "#2563eb",
+      berry: "#ef4444",
+      laser: "#f59e0b",
+      trap: "#a855f7",
+      dagger: "#f1f5f9",
+      mirror: "#93c5fd",
+      beam: "#fbbf24"
+    };
+
+    const canvas = document.getElementById("board");
+    const ctx = canvas.getContext("2d");
+    const statusEl = document.getElementById("status");
+    const p1Info = document.getElementById("p1Info");
+    const p2Info = document.getElementById("p2Info");
+    const p2Title = document.getElementById("p2Title");
+    const overlay = document.getElementById("menuOverlay");
+
+    document.getElementById("onePlayerBtn").addEventListener("click", () => startGame("single"));
+    document.getElementById("twoPlayerBtn").addEventListener("click", () => startGame("multi"));
+
+    const game = {
+      mode: null,
+      running: false,
+      winner: null,
+      tickMs: 120,
+      players: [],
+      items: [],
+      traps: [],
+      effects: []
+    };
+
+    // Main game loop always runs; game state controls when movement is active.
+    setInterval(tick, game.tickMs);
+    window.addEventListener("keydown", onKeyDown);
+
+    function startGame(mode) {
+      game.mode = mode;
+      game.running = true;
+      game.winner = null;
+      game.items = [];
+      game.traps = [];
+      game.effects = [];
+
+      game.players = [
+        {
+          id: 1,
+          name: "Player 1",
+          isAI: false,
+          colorHead: COLORS.p1Head,
+          colorBody: COLORS.p1Body,
+          body: [{ x: 6, y: 10 }, { x: 5, y: 10 }, { x: 4, y: 10 }, { x: 3, y: 10 }],
+          dir: { x: 1, y: 0 },
+          nextDir: { x: 1, y: 0 },
+          growBy: 0,
+          inventory: { laser: 0, trap: 0, dagger: 0, mirror: 0 },
+          controls: { up: "w", left: "a", down: "s", right: "d", laser: "f", trap: "g" }
+        },
+        {
+          id: 2,
+          name: mode === "single" ? "AI" : "Player 2",
+          isAI: mode === "single",
+          colorHead: COLORS.p2Head,
+          colorBody: COLORS.p2Body,
+          body: [{ x: 23, y: 10 }, { x: 24, y: 10 }, { x: 25, y: 10 }, { x: 26, y: 10 }],
+          dir: { x: -1, y: 0 },
+          nextDir: { x: -1, y: 0 },
+          growBy: 0,
+          inventory: { laser: 0, trap: 0, dagger: 0, mirror: 0 },
+          controls: { up: "ArrowUp", left: "ArrowLeft", down: "ArrowDown", right: "ArrowRight", laser: "/", trap: "." }
+        }
+      ];
+
+      p2Title.textContent = mode === "single" ? "AI Opponent" : "Player 2 (Arrow Keys)";
+      overlay.classList.add("hidden");
+
+      spawnItem(ITEM_TYPES.BERRY);
+      spawnItem(ITEM_TYPES.BERRY);
+      spawnItem(ITEM_TYPES.LASER);
+      spawnItem(ITEM_TYPES.TRAP);
+      spawnItem(ITEM_TYPES.DAGGER);
+
+      setStatus(mode === "single"
+        ? "1 Player mode started! Beat the AI."
+        : "2 Player mode started! Good luck.");
+      updateHud();
+      render();
+    }
+
+    function onKeyDown(event) {
+      const key = event.key;
+
+      if (!game.mode) return;
+
+      if (!game.running && normalize(key) === "r") startGame(game.mode);
+      if (normalize(key) === "m") {
+        game.running = false;
+        game.mode = null;
+        overlay.classList.remove("hidden");
+        setStatus("Choose a mode to start.");
+        return;
+      }
+
+      for (const player of game.players) {
+        if (player.isAI) continue;
+
+        if (key === player.controls.up) trySetDirection(player, 0, -1);
+        if (key === player.controls.down) trySetDirection(player, 0, 1);
+        if (key === player.controls.left) trySetDirection(player, -1, 0);
+        if (key === player.controls.right) trySetDirection(player, 1, 0);
+
+        if (normalize(key) === normalize(player.controls.laser)) useLaser(player);
+        if (normalize(key) === normalize(player.controls.trap)) placeTrap(player);
+      }
+    }
+
+    function tick() {
+      if (!game.running || !game.mode) {
+        render();
+        return;
+      }
+
+      const ai = game.players[1];
+      if (ai && ai.isAI) {
+        aiChooseDirection(ai);
+        aiUseItems(ai);
+      }
+
+      for (const player of game.players) {
+        player.dir = { ...player.nextDir };
+
+        const head = player.body[0];
+        player.body.unshift({ x: head.x + player.dir.x, y: head.y + player.dir.y });
+
+        if (player.growBy > 0) player.growBy -= 1;
+        else player.body.pop();
+      }
+
+      checkItemPickups();
+      checkTrapHits();
+      checkCollisions();
+      maybeSpawnItems();
+      updateEffects();
+      updateHud();
+      render();
+    }
+
+    function aiChooseDirection(ai) {
+      const options = [
+        { x: 0, y: -1 },
+        { x: 1, y: 0 },
+        { x: 0, y: 1 },
+        { x: -1, y: 0 }
+      ];
+
+      const valid = options.filter((d) => !(d.x === -ai.dir.x && d.y === -ai.dir.y));
+      const target = findBestTarget(ai);
+
+      const scored = valid.map((d) => {
+        const nx = ai.body[0].x + d.x;
+        const ny = ai.body[0].y + d.y;
+        let risk = 0;
+
+        // "Realistic" AI: avoid immediate death first.
+        if (!inBounds(nx, ny)) risk += 1000;
+        if (cellInSnake(nx, ny, ai.body.slice(0, -1))) risk += 700;
+
+        const enemy = getOpponent(ai);
+        if (cellInSnake(nx, ny, enemy.body)) risk += 700;
+
+        const trap = game.traps.find((t) => t.x === nx && t.y === ny && t.ownerId !== ai.id);
+        if (trap) risk += 200;
+
+        const dist = target ? manhattan(nx, ny, target.x, target.y) : 8;
+        const jitter = Math.random() * 0.5;
+
+        return { dir: d, score: risk + dist + jitter };
+      });
+
+      scored.sort((a, b) => a.score - b.score);
+      if (scored[0]) ai.nextDir = scored[0].dir;
+    }
+
+    function aiUseItems(ai) {
+      const enemy = getOpponent(ai);
+      const aligned = (ai.dir.x !== 0 && ai.body[0].y === enemy.body[0].y)
+        || (ai.dir.y !== 0 && ai.body[0].x === enemy.body[0].x);
+
+      if (ai.inventory.laser > 0 && aligned && Math.random() < 0.2) useLaser(ai);
+      if (ai.inventory.trap > 0 && Math.random() < 0.08) placeTrap(ai);
+    }
+
+    function findBestTarget(player) {
+      const berries = game.items.filter((i) => i.type === ITEM_TYPES.BERRY);
+      const pickups = berries.length > 0 ? berries : game.items;
+      if (pickups.length === 0) return null;
+
+      const hx = player.body[0].x;
+      const hy = player.body[0].y;
+
+      pickups.sort((a, b) => manhattan(hx, hy, a.x, a.y) - manhattan(hx, hy, b.x, b.y));
+      return pickups[0];
+    }
+
+    function trySetDirection(player, dx, dy) {
+      if (dx === -player.dir.x && dy === -player.dir.y) return;
+      player.nextDir = { x: dx, y: dy };
+    }
+
+    function useLaser(player) {
+      if (!game.running || player.inventory.laser <= 0) return;
+      player.inventory.laser -= 1;
+
+      const enemy = getOpponent(player);
+      const cells = [];
+      let x = player.body[0].x + player.dir.x;
+      let y = player.body[0].y + player.dir.y;
+
+      while (inBounds(x, y)) {
+        cells.push({ x, y });
+        x += player.dir.x;
+        y += player.dir.y;
+      }
+
+      game.effects.push({ type: "laser", cells, ttl: 5 });
+
+      const hitEnemy = enemy.body.some((seg) => cells.some((c) => c.x === seg.x && c.y === seg.y));
+      if (hitEnemy) {
+        if (enemy.inventory.mirror > 0) {
+          enemy.inventory.mirror -= 1;
+          shrinkSnake(player, 2);
+          setStatus(`${enemy.name} reflected the laser! ${player.name} loses 2.`);
+        } else {
+          shrinkSnake(enemy, 2);
+          setStatus(`${player.name} laser hit! ${enemy.name} loses 2.`);
+        }
+      } else {
+        setStatus(`${player.name} fired a laser but missed.`);
+      }
+    }
+
+    function placeTrap(player) {
+      if (!game.running || player.inventory.trap <= 0) return;
+      const head = player.body[0];
+
+      if (game.traps.some((t) => t.x === head.x && t.y === head.y)) return;
+
+      player.inventory.trap -= 1;
+      game.traps.push({ x: head.x, y: head.y, ownerId: player.id, ttl: 220 });
+      setStatus(`${player.name} placed a trap.`);
+    }
+
+    function checkItemPickups() {
+      for (const player of game.players) {
+        const head = player.body[0];
+        const idx = game.items.findIndex((i) => i.x === head.x && i.y === head.y);
+        if (idx === -1) continue;
+
+        const item = game.items[idx];
+        game.items.splice(idx, 1);
+
+        if (item.type === ITEM_TYPES.BERRY) {
+          player.growBy += 2;
+          setStatus(`${player.name} ate berries and grew!`);
+        }
+        if (item.type === ITEM_TYPES.LASER) {
+          player.inventory.laser += 1;
+          setStatus(`${player.name} picked up a laser.`);
+        }
+        if (item.type === ITEM_TYPES.TRAP) {
+          player.inventory.trap += 1;
+          setStatus(`${player.name} picked up a trap.`);
+        }
+        if (item.type === ITEM_TYPES.DAGGER) {
+          player.inventory.dagger += 1;
+          setStatus(`${player.name} found a rare dagger!`);
+        }
+        if (item.type === ITEM_TYPES.MIRROR) {
+          player.inventory.mirror += 1;
+          setStatus(`${player.name} found a rare mirror!`);
+        }
+      }
+    }
+
+    function checkTrapHits() {
+      for (const player of game.players) {
+        const head = player.body[0];
+        const trapIdx = game.traps.findIndex((t) => t.x === head.x && t.y === head.y && t.ownerId !== player.id);
+        if (trapIdx !== -1) {
+          game.traps.splice(trapIdx, 1);
+          shrinkSnake(player, 2);
+          setStatus(`${player.name} hit a trap and lost 2!`);
+        }
+      }
+
+      game.traps.forEach((t) => t.ttl -= 1);
+      game.traps = game.traps.filter((t) => t.ttl > 0);
+    }
+
+    function checkCollisions() {
+      const [p1, p2] = game.players;
+
+      if (!inBounds(p1.body[0].x, p1.body[0].y) && !useDaggerIfAvailable(p1, p2, "hit the wall")) return endGame(p2, `${p1.name} hit the wall.`);
+      if (!inBounds(p2.body[0].x, p2.body[0].y) && !useDaggerIfAvailable(p2, p1, "hit the wall")) return endGame(p1, `${p2.name} hit the wall.`);
+
+      if (hitsOwnBody(p1) && !useDaggerIfAvailable(p1, p2, "hit their own body")) return endGame(p2, `${p1.name} hit their own body.`);
+      if (hitsOwnBody(p2) && !useDaggerIfAvailable(p2, p1, "hit their own body")) return endGame(p1, `${p2.name} hit their own body.`);
+
+      if (hitsOtherBody(p1, p2) && !useDaggerIfAvailable(p1, p2, `crashed into ${p2.name}`)) return endGame(p2, `${p1.name} crashed.`);
+      if (hitsOtherBody(p2, p1) && !useDaggerIfAvailable(p2, p1, `crashed into ${p1.name}`)) return endGame(p1, `${p2.name} crashed.`);
+
+      if (p1.body[0].x === p2.body[0].x && p1.body[0].y === p2.body[0].y) {
+        const p1Saved = useDaggerIfAvailable(p1, p2, "collided head-to-head");
+        const p2Saved = useDaggerIfAvailable(p2, p1, "collided head-to-head");
+        if (!p1Saved && !p2Saved) {
+          game.running = false;
+          game.winner = null;
+          setStatus("Tie game! Press R to replay or M for menu.");
+        }
+      }
+
+      if (p1.body.length < 3) return endGame(p2, `${p1.name} became too short.`);
+      if (p2.body.length < 3) return endGame(p1, `${p2.name} became too short.`);
+    }
+
+    function useDaggerIfAvailable(player, opponent, reason) {
+      if (player.inventory.dagger <= 0) return false;
+      player.inventory.dagger -= 1;
+      shrinkSnake(opponent, 3);
+
+      // Remove the invalid head position to "save" this crash.
+      if (player.body.length > 1) player.body.shift();
+
+      setStatus(`${player.name} used a dagger after they ${reason}. ${opponent.name} loses 3!`);
+      return true;
+    }
+
+    function maybeSpawnItems() {
+      const berryCount = game.items.filter((i) => i.type === ITEM_TYPES.BERRY).length;
+      if (berryCount < 1) spawnItem(ITEM_TYPES.BERRY);
+
+      if (game.items.length < 3) {
+        const r = Math.random();
+        if (r < 0.5) spawnItem(ITEM_TYPES.BERRY);
+        else if (r < 0.76) spawnItem(ITEM_TYPES.LASER);
+        else if (r < 0.96) spawnItem(ITEM_TYPES.TRAP);
+        else if (r < 0.985) spawnItem(ITEM_TYPES.DAGGER);
+        else spawnItem(ITEM_TYPES.MIRROR);
+      }
+    }
+
+    function spawnItem(type) {
+      for (let tries = 0; tries < 300; tries += 1) {
+        const x = randInt(0, COLS - 1);
+        const y = randInt(0, ROWS - 1);
+        if (isCellOpen(x, y)) {
+          game.items.push({ x, y, type });
+          return;
+        }
+      }
+    }
+
+    function isCellOpen(x, y) {
+      if (game.items.some((i) => i.x === x && i.y === y)) return false;
+      if (game.traps.some((t) => t.x === x && t.y === y)) return false;
+      for (const p of game.players) {
+        if (cellInSnake(x, y, p.body)) return false;
+      }
+      return true;
+    }
+
+    function updateEffects() {
+      game.effects.forEach((e) => e.ttl -= 1);
+      game.effects = game.effects.filter((e) => e.ttl > 0);
+    }
+
+    function endGame(winner, reason) {
+      game.running = false;
+      game.winner = winner;
+      setStatus(`🏁 ${winner.name} wins! ${reason} Press R to replay, M for menu.`);
+    }
+
+    function updateHud() {
+      if (!game.players.length) return;
+      const [p1, p2] = game.players;
+      p1Info.textContent = `Length ${p1.body.length} | Lasers ${p1.inventory.laser} | Traps ${p1.inventory.trap} | Daggers ${p1.inventory.dagger} | Mirrors ${p1.inventory.mirror}`;
+      p2Info.textContent = `Length ${p2.body.length} | Lasers ${p2.inventory.laser} | Traps ${p2.inventory.trap} | Daggers ${p2.inventory.dagger} | Mirrors ${p2.inventory.mirror}`;
+    }
+
+    function render() {
+      ctx.fillStyle = COLORS.board;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      drawGrid();
+      drawItems();
+      drawTraps();
+      drawLaserEffects();
+
+      for (const p of game.players) drawSnake(p);
+
+      if (game.mode && !game.running) {
+        ctx.fillStyle = "rgba(2, 6, 23, 0.65)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#e2e8f0";
+        ctx.textAlign = "center";
+        ctx.font = "bold 40px Trebuchet MS";
+        ctx.fillText(game.winner ? `${game.winner.name} Wins!` : "Tie!", canvas.width / 2, canvas.height / 2 - 10);
+        ctx.font = "20px Trebuchet MS";
+        ctx.fillText("Press R to replay, M for menu", canvas.width / 2, canvas.height / 2 + 28);
+      }
+    }
+
+    function drawGrid() {
+      ctx.strokeStyle = COLORS.grid;
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= COLS; x += 1) {
+        ctx.beginPath();
+        ctx.moveTo(x * CELL, 0);
+        ctx.lineTo(x * CELL, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= ROWS; y += 1) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * CELL);
+        ctx.lineTo(canvas.width, y * CELL);
+        ctx.stroke();
+      }
+    }
+
+    function drawSnake(player) {
+      player.body.forEach((seg, idx) => {
+        ctx.fillStyle = idx === 0 ? player.colorHead : player.colorBody;
+        const pad = idx === 0 ? 2 : 4;
+        ctx.fillRect(seg.x * CELL + pad, seg.y * CELL + pad, CELL - pad * 2, CELL - pad * 2);
+      });
+    }
+
+    function drawItems() {
+      for (const item of game.items) {
+        const cx = item.x * CELL + CELL / 2;
+        const cy = item.y * CELL + CELL / 2;
+
+        if (item.type === ITEM_TYPES.BERRY) {
+          ctx.fillStyle = COLORS.berry;
+          ctx.beginPath();
+          ctx.arc(cx, cy, CELL * 0.25, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#22c55e";
+          ctx.fillRect(cx - 3, cy - 12, 6, 4);
+        }
+
+        if (item.type === ITEM_TYPES.LASER) {
+          ctx.fillStyle = COLORS.laser;
+          ctx.fillRect(item.x * CELL + 8, item.y * CELL + 12, 14, 6);
+          ctx.fillRect(item.x * CELL + 22, item.y * CELL + 10, 2, 10);
+        }
+
+        if (item.type === ITEM_TYPES.TRAP) {
+          ctx.strokeStyle = COLORS.trap;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(cx, cy, CELL * 0.26, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(cx - 8, cy - 8);
+          ctx.lineTo(cx + 8, cy + 8);
+          ctx.moveTo(cx + 8, cy - 8);
+          ctx.lineTo(cx - 8, cy + 8);
+          ctx.stroke();
+        }
+
+        if (item.type === ITEM_TYPES.DAGGER) {
+          ctx.fillStyle = COLORS.dagger;
+          ctx.fillRect(item.x * CELL + 13, item.y * CELL + 7, 4, 17);
+          ctx.fillRect(item.x * CELL + 10, item.y * CELL + 20, 10, 3);
+          ctx.fillStyle = "#94a3b8";
+          ctx.beginPath();
+          ctx.moveTo(item.x * CELL + 15, item.y * CELL + 4);
+          ctx.lineTo(item.x * CELL + 12, item.y * CELL + 9);
+          ctx.lineTo(item.x * CELL + 18, item.y * CELL + 9);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        if (item.type === ITEM_TYPES.MIRROR) {
+          ctx.strokeStyle = COLORS.mirror;
+          ctx.lineWidth = 3;
+          ctx.strokeRect(item.x * CELL + 9, item.y * CELL + 8, 12, 14);
+          ctx.fillStyle = "rgba(191, 219, 254, 0.45)";
+          ctx.fillRect(item.x * CELL + 11, item.y * CELL + 10, 8, 10);
+          ctx.fillStyle = "#64748b";
+          ctx.fillRect(item.x * CELL + 13, item.y * CELL + 22, 4, 4);
+        }
+      }
+    }
+
+    function drawTraps() {
+      for (const trap of game.traps) {
+        ctx.fillStyle = COLORS.trap;
+        ctx.fillRect(trap.x * CELL + 8, trap.y * CELL + 8, CELL - 16, CELL - 16);
+      }
+    }
+
+    function drawLaserEffects() {
+      for (const effect of game.effects) {
+        if (effect.type !== "laser") continue;
+        ctx.fillStyle = COLORS.beam;
+        for (const cell of effect.cells) {
+          ctx.fillRect(cell.x * CELL + 11, cell.y * CELL + 11, CELL - 22, CELL - 22);
+        }
+      }
+    }
+
+    function hitsOwnBody(player) {
+      const head = player.body[0];
+      return player.body.slice(1).some((s) => s.x === head.x && s.y === head.y);
+    }
+
+    function hitsOtherBody(player, enemy) {
+      const head = player.body[0];
+      return enemy.body.some((s) => s.x === head.x && s.y === head.y);
+    }
+
+    function shrinkSnake(player, amount) {
+      player.body = player.body.slice(0, Math.max(1, player.body.length - amount));
+    }
+
+    function cellInSnake(x, y, body) {
+      return body.some((s) => s.x === x && s.y === y);
+    }
+
+    function getOpponent(player) {
+      return game.players.find((p) => p.id !== player.id);
+    }
+
+    function inBounds(x, y) {
+      return x >= 0 && x < COLS && y >= 0 && y < ROWS;
+    }
+
+    function manhattan(ax, ay, bx, by) {
+      return Math.abs(ax - bx) + Math.abs(ay - by);
+    }
+
+    function randInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function normalize(v) {
+      return String(v).toLowerCase();
+    }
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+    }
+
+    render();
+  </script>
+</body>
+</html>
